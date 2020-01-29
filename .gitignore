@@ -2,6 +2,8 @@
 /old
 /readme
 /examples
+/localdocs
+todo.*
 *.zip
 *.8*
 *.exe
