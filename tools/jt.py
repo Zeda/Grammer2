@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+
 import sys
 #This reads the jumptable.z80 and generates an include file
 hexd="0123456789ABCDEF"
