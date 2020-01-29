@@ -97,7 +97,6 @@ The  app's menu controls are as follows:
 * [Graph] shows more options. At the moment, enable/disable the lowercase and the token hook.
 
 ![Grammer Main Menu-- (Default) Grammer programs only](https://i.imgur.com/w8HdE5Q.png)
-
 ![Grammer Main Menu-- All Programs and Appvars](https://i.imgur.com/yfXOz7P.png)
 ![Grammer Main Menu-- Appvars Only](https://i.imgur.com/azgclwr.png)
 ![Grammer Main Menu-- Assembly Programs Only](https://i.imgur.com/wbWStSQ.png)
