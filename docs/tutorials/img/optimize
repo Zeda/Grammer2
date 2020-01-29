@@ -1,6 +1,0 @@
-gifsicle -b -O3 *.gif
-mkdir img2
-pngcrush -d img2 *.png
-rm *.png
-mv img2/*.png ../img
-rmdir img2
