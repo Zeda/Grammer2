@@ -10,7 +10,7 @@ if exist spasm.exe (
 cd src
 
 echo "Generating grammer2.5.inc"
-python jt.py jmptable.z80 grammer2.5.inc
+python ..\tools\jt.py jmptable.z80 grammer2.5.inc
 copy /Y grammer2.5.inc ..\docs\grammer2.5.inc
 
 echo "Assembling Default Package"

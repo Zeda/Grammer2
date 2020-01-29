@@ -3,7 +3,7 @@
 cd src
 
 echo -e "\e[1m\e[37mGenerating grammer2.5.inc\e[0m"
-python jt.py jmptable.z80 grammer2.5.inc
+python ../tools/jt.py jmptable.z80 grammer2.5.inc
 cp grammer2.5.inc ../docs/grammer2.5.inc
 
 #echo -e "\e[1m\e[37mAssembling Default Package\e[0m"
