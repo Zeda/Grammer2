@@ -1,0 +1,123 @@
+FireCycle:
+  dec a \ jr nz,FireCycle2
+
+  ld a,e
+  ld de,12
+  ex de,hl
+  add hl,de
+  ld bc,2F4h
+  or a
+  jr z,BlackFireLoop
+FireLoop:
+  call Random
+  cpl
+  and (hl)
+  ld (de),a
+  inc de
+  cpi
+  jp pe,FireLoop
+  ret
+BlackFireLoop:
+  call Random
+  or (hl)
+  ld (de),a
+  inc de
+  cpi
+  jp pe,BlackFireLoop
+  ret
+FireCycle2:
+  dec a
+  ret nz
+  push de
+  push hl
+  call ParseNextFullArg
+;Y,X
+  ld h,b
+  ld l,c
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  pop bc
+  add hl,bc
+  push hl
+  call ParseNextFullArg
+  pop hl
+  add hl,bc
+  push hl
+;HL is now the start location
+;Width,Height:
+  call ParseNextFullArg
+  ld a,c
+  push af
+  call ParseNextFullArg
+  pop af
+  ld b,a
+  pop hl
+  pop de
+;b is width
+;c is height
+;e is the particle type
+  ld d,c
+  ld a,12
+  sub b
+  ld c,a
+  ld a,e \ or a
+  ld a,d
+  ld de,12
+  ex de,hl
+  add hl,de
+;a=height
+;b is width
+;c=12-b
+  jr z,BlackFireLoop2
+FireLoop2:
+  push af
+  push bc
+  call Random
+  cpl
+  and (hl)
+  ld (de),a
+  inc de
+  inc hl
+  djnz FireLoop2+2
+  add hl,bc
+  ex de,hl
+  add hl,bc
+  ex de,hl
+  pop bc
+  pop af
+  dec a
+  jr nz,FireLoop2
+  ret
+BlackFireLoop2:
+  push af
+  push bc
+  call Random
+  or (hl)
+  ld (de),a
+  inc de
+  inc hl
+  djnz BlackFireLoop2+2
+  add hl,bc
+  ex de,hl
+  add hl,bc
+  ex de,hl
+  pop bc
+  pop af
+  dec a
+  jr nz,BlackFireLoop2
+  ret
+Random:
+;preserve HL,DE,BC
+  push hl
+  push de
+  push bc
+  call prng16
+  ld a,h
+  and l
+  and b
+  pop bc
+  pop de
+  pop hl
+  ret

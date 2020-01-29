@@ -1,0 +1,240 @@
+zlz_comp:
+;Inputs:
+;   HL points to the input data
+;   DE points to the output
+;   BC is the size of the input
+;Outputs:
+;   HL points to the byte after the input
+;   DE points to the byte afterthe compressed data
+;   BC is 0
+;Destroys:
+;   AF,IX
+;
+;This routine has input and output like LDIR,
+;except if LDIR as compressing as it goes.
+;
+  ld a,ZLZ_MIN_RUN
+  inc b
+  dec b
+  jr nz,+_
+  cp c
+  jr z,$+4
+  jr c,+_
+  ld a,c
+  ld (de),a
+  inc de
+  inc c
+  dec c
+  ret z
+  ldir
+  ret
+_:
+  ld (zlz_base),hl
+  ld (zlz_runstart),hl
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+
+  ld a,c
+  sub ZLZ_MIN_RUN
+  ld c,a
+  jr nc,$+3
+  dec b
+
+zlz_comp_loop:
+  push bc
+  ld (zlz_head),hl
+  call zlz_findmatch
+  inc b
+  dec b
+  jr nz,zlz_matched
+  ld a,c
+  cp ZLZ_MIN_RUN
+  jr nc,zlz_matched
+  ld hl,(zlz_head)
+  pop bc
+  cpi
+  jp pe,zlz_comp_loop
+
+zlz_write_run:
+;need to write the run from (zlz_head), size HL-(zlz_head)
+  push hl
+  push bc
+  ld hl,(zlz_head)
+  ld bc,(zlz_runstart)
+  or a
+  sbc hl,bc
+  jr z,zlz_write_run_done
+  ld b,h
+  ld c,l
+
+  ld a,l
+  add a,a \ rl h
+  add a,a \ rl h
+  jr z,+_
+  scf
+_:
+  rra
+  rra
+  ld (de),a
+  inc de
+  jr z,+_
+  ld a,h
+  ld (de),a
+  inc de
+_:
+  ld hl,(zlz_runstart)
+  ldir
+zlz_write_run_done:
+  pop bc
+  pop hl
+  ld (zlz_runstart),hl
+  ret
+
+
+zlz_matched:
+  push bc
+  call zlz_write_run
+  pop bc
+  push bc
+
+;size then pointer
+;Make sure the size doesn't exceed 13 bits
+  ld a,c
+  add a,a \ rl b
+  add a,a \ rl b
+  jr z,+_
+  scf
+_:
+  rra
+  scf
+  rra
+  ld (de),a
+  inc de
+  jr z,+_
+  ld a,b
+  ld (de),a
+  inc de
+_:
+
+;Now we need to write the pointer
+;this is an offset back from the data
+;we want (zlz_head)-HL
+  ld b,h
+  ld c,l
+  ld hl,(zlz_head)
+  ;or a   ;the rra above will reset the carry since the bottom bit of A was 0
+  sbc hl,bc
+  ld a,l
+  add a,a \ rl h
+  jr z,+_
+  scf
+_:
+  rra
+  ld (de),a
+  inc de
+  jr z,+_
+  ld a,h
+  ld (de),a
+  inc de
+_:
+
+  pop bc
+  ld hl,(zlz_head)
+  add hl,bc
+  ex (sp),hl
+  ;or a
+  sbc hl,bc
+  ld b,h
+  ld c,l
+  pop hl
+  ld (zlz_runstart),hl
+  jp nz,zlz_comp_loop
+  ret
+
+zlz_findmatch:
+  push de
+  ld (zlz_match_base),hl
+  add hl,bc
+  ld (zlz_top),hl
+  sbc hl,bc
+  ld de,(zlz_base)
+  xor a
+  ld (zlz_match_size),a
+  ld (zlz_match_size+1),a
+  sbc hl,de
+  ld bc,1-ZLZ_MIN_RUN
+  add hl,bc
+  ld b,h
+  ld c,l
+  ex de,hl
+  jr zlz_findmatch_loop_begin
+zlz_findmatch_loop:
+  push hl
+  push bc
+  call +_
+  pop bc
+  pop hl
+zlz_findmatch_loop_begin:
+;DE points to the data to find
+;HL points to the data to search
+;BC is the size of the data to search
+  ld de,(zlz_match_base)
+  ld a,(de)
+  cpir
+  jp pe,zlz_findmatch_loop
+zlz_findmatch_done:
+  ld bc,(zlz_match_size)
+  ld hl,(zlz_match_loc)
+  pop de
+  ret
+_:
+;now we compare the rest of the string
+  push hl
+  inc de
+  ld hl,(zlz_top)
+  or a
+  sbc hl,de
+  ld b,h
+  ld c,l
+  pop hl
+  jr z,zlz_match_complete
+  push hl
+_:
+  ld a,(de)
+  inc de
+  cpi
+  jp po,+_
+  jr z,-_
+_:
+  ld hl,(zlz_match_base)
+  ex de,hl
+  ;or a
+  sbc hl,de
+  ld bc,(zlz_match_size)
+  ;if HL>=BC, save the new match (if it is the same size as the previous match, then this one is closer, which can be better)
+  scf
+  sbc hl,bc
+  pop de
+  ret c
+  add hl,bc
+  ld (zlz_match_size),hl
+  dec de
+  ld (zlz_match_loc),de
+  ret
+
+
+zlz_match_complete:
+;can't get better than this, so we'll exit early
+  ld hl,(zlz_match_base)
+  ex de,hl
+  ;or a
+  sbc hl,de
+  ld b,h
+  ld c,l
+  pop af  ;return address
+  pop af  ;size left
+  pop hl  ;pointer to match
+  pop de  ;saved DE
+  ret

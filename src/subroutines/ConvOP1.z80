@@ -1,0 +1,97 @@
+ConvOP1:
+  ld hl,OP1
+convFloat:
+;Inputs: HL points to the TI Float.
+;Outputs: The float is converted to a 16-bit integer held in DE, or LSB in A.
+;68cc if not a number
+;93cc          on (0,1)
+;154.140625cc  on [1,10) or 0
+;324.5159375cc on [10,100)
+;435.6565625cc on [100,1000)
+;540.031875cc  on [1000,10000)
+;651.1725cc    on [10000,100000)
+;118cc         if >=100000
+;Average for integers on [0,65535]: ~632.43cc
+  call +_
+  ld a,e
+  ret
+_:
+  xor a
+  ld d,a
+  ld e,a
+  or (hl)
+  and 31
+  ret nz
+  inc hl
+  ld a,(hl)
+  sub 80h
+  ret c
+  inc hl
+  jr z,lastdigit2
+  cp 5
+  ret nc
+  ld b,a
+
+_:
+  ;multiply DE by 100
+  ex de,hl
+  ld a,b
+  sla l
+  add hl,hl
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,bc
+  ex de,hl
+  ld b,a
+  call convBCDbyte
+  inc hl
+  dec b
+  ret z
+  djnz -_
+lastdigit:
+  ex de,hl
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  ex de,hl
+lastdigit2:
+;49+{0,8
+;min: 49cc
+;max: 57cc
+;avg: 49+8*4.5/256 = 49.140625
+  ld a,(hl)
+  rrca
+  rrca
+  rrca
+  rrca
+  and 15
+  add a,e
+  ld e,a
+  ret nc
+  inc d
+  ret
+convBCDbyte:
+;min: 60cc
+;max: 68cc
+;avg: 60+8*(99*98/2/100)/256 = 61.5159375cc
+  ld a,(hl)   ;\ I feel particularly proud of this code, so feel free to use it ^~^
+  and $F0     ; |It converts a byte of BCD to an 8-bit int.
+  rra         ; |The catch is, I only have A and C to use, and (hl) is the BCD
+  ld c,a      ; |number.
+  rra         ; |If you come up with faster, please let me know and post it in
+  rra         ; |the optimized routines thread on popular TI forums.
+  sub a,c     ; |Algo: Multiply upper digit by -6, add the original byte.
+  add a,(hl)  ;/ Result is upper_digit*(-6+16)+lower_digit. Ha, repost.
+  add a,e
+  ld e,a
+  ret nc
+  inc d
+  ret

@@ -1,0 +1,150 @@
+;This is the code to open up and execute code from a module.
+#define binmin    TempWord4
+#define binmax    TempWord5
+#define baseptr   TempWord2
+#define basepage  TempWord3
+
+
+module:
+#ifndef INCLUDE_GRAMPKG
+  bit nogrampkg,(iy+InternalFlags)
+  jr z,skipgrampkg
+  ld hl,s_grampkg
+  rst rMov9ToOP1
+  bcall(_ChkFindSym)
+  ld a,b
+  ld b,0
+  call module_locate+6
+#else
+  in a,(6)
+  dec a
+  ld hl,grampkg_start
+  ld bc,grampkg_end-grampkg_start
+  call module_located
+#endif
+  ret c
+skipgrampkg:
+  ld hl,module_count
+  ld a,(hl)
+  or a
+  jr z,no_module_loc
+_:
+  inc hl
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  push hl
+  push af
+  ex de,hl
+  call module_locate
+  pop hl
+  ld a,h
+  pop hl
+  ret c
+  dec a
+  jr nz,-_
+no_module_loc:
+  jp nc,ErrPkgNotFound
+  ret
+module_locate:
+  call GetVarName_
+  call GetVarInfo_
+  ccf
+  ret nc
+;  jp c,module_not_found
+  call GetVarInfoVarFound
+  ;now HL points to data, DE points to VAT entry, BC is size, A is page
+module_located:
+;We already know the header is valid. We can advance HL by 6 then read 2 bytes
+  ld bc,8
+  ld de,cmdShadow
+  call ReadArc
+  ex de,hl
+;table size. Make sure it doesn't exceed 384 entries, make sure not 0
+  ld hl,(cmdShadow+6)
+  ld c,a
+  ld a,h
+  or l
+  ret z
+  ld a,c
+  ld bc,385     ;
+  sbc hl,bc
+  jr nc,module_not_found
+  add hl,bc
+  add hl,hl
+  ld b,h
+  ld c,l
+  ld hl,moduleExec
+  ld (binmin),hl
+  ex de,hl
+  call ReadArc
+  ld (baseptr),hl   ;This is the base address of the data
+  ld (basepage),a   ;
+  ld (binmax),de
+  ;Now we need to search for the string at (parsePtr)
+binsearchloop:
+  ld hl,(binmax)
+  ld de,(binmin)
+  or a
+  sbc hl,de
+  jr z,nomatch
+  rr h
+  rr l
+  res 0,l
+  add hl,de
+  push hl
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  ld a,d
+
+  rlca
+  rlca
+  and 3
+  ld hl,basepage
+  add a,(hl)
+  ld hl,(baseptr)
+  res 7,d
+  res 6,d
+  adc hl,de
+  jp po,+_
+  res 7,h
+  set 6,h
+  inc a
+_:
+  call bincompare
+  jr z,binmatch
+  pop hl
+  jr c,+_
+  inc hl
+  inc hl
+  ld (binmin),hl
+  jr binsearchloop
+_:
+  ld (binmax),hl
+  jr binsearchloop
+binmatch:
+;a match was found
+  pop bc
+  inc de
+  ld (parsePtr),de
+  ld bc,3
+  ld de,cmdShadow
+  call ReadArc
+  ld bc,(cmdShadow+1)
+  ld de,moduleExec
+  call ReadArc
+  call moduleExec
+  scf
+  ret
+nomatch:
+module_not_found:
+  or a
+  ret
+
+#undefine binmin    TempWord4
+#undefine binmax    TempWord5
+#undefine baseptr   TempWord2
+#undefine basepage  TempWord3
+
+;852 bytes left up to here

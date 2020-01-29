@@ -1,0 +1,598 @@
+Sqrt:
+  ld a,(hl)
+  cp 3Ah
+  jr z,floatsqrt
+  inc hl
+  cp $AE
+  push af
+  jr nz,+_
+  ld (parsePtr),hl
+_:
+  call ParseFullArg
+  ld hl,sqrtHL
+  ld (next_page_call_address),hl
+  ld h,b
+  ld l,c
+  call next_page_call
+
+  ld (ThetaPrimeVar),hl
+  ld c,a
+  ld b,0
+  pop af
+  ret nz
+  ;if HL<=BC, increment BC
+  sbc hl,bc
+  ret c
+  ret z
+  inc bc
+  ret
+floatsqrt:
+  ld hl,sqrtSingle
+  jr float_stepin_1
+sinefloat:
+  pop af
+  ld hl,sinSingle
+  jr float_stepin_1
+_:
+  ld hl,cosSingle
+float_stepin_1:
+  push hl     ;the call to make
+  call ParseNextFullArg
+float_stepin_1_:
+  push bc     ;the second argument
+  call floatstackpush
+  ld b,h
+  ld c,l
+  pop de
+  pop hl
+  ld (next_page_call_address),hl
+  ex de,hl
+  jp next_page_call
+Cos:
+  ld a,(hl)
+  cp 3Ah
+  jr z,-_
+  ld a,64
+  .db $FE
+Sin:
+  xor a
+  push af
+  ld a,(hl)
+  cp 3Ah
+  jr z,sinefloat
+  call ParseFullArg
+  pop af
+  add a,c
+Sine:
+  ld d,a
+  rlca
+  rlca
+  sbc a,a
+  xor d
+  and 63
+  ld b,0
+#if (sinTable&255)<192
+#if (sintable&255)==0
+  ld h,sinTable>>8
+  ld l,a
+#else
+  ld hl,sinTable
+  add a,l
+  ld l,a
+#endif
+#else
+  ld c,a
+  ld hl,sinTable
+  add hl,bc
+#endif
+  ld c,(hl)
+  rlc d
+  jr c,NegateBC
+  ret
+_:
+  ld hl,absSingle
+  jp float_stepin_1
+absToken:
+  ld a,(hl)
+  cp 3Ah
+  jr z,-_
+  call ParseFullArg
+  bit 7,b
+  ret z
+  jr negateBC
+Negative:
+  ld a,(hl)
+  cp 3Ah
+  jr z,+_
+  call ParseFullArg
+negateBC:
+  xor a \ sub c \ ld c,a
+  sbc a,a \ sub b \ ld b,a
+  ret
+_:
+  ld hl,negSingle
+  jp float_stepin_1
+logToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  call ParseNextFullArg
+  cp 2Bh
+  ld hl,logSingle
+  jp z,float_stepin_2_
+  ld hl,log10Single
+  push hl
+  jr float_stepin_1_
+Add:
+  push bc
+  ld a,(hl)
+  cp 3Ah
+  jr z,+_
+  call ParseFullArg
+  pop hl
+  xor a
+  add hl,bc
+  ld b,h
+  ld c,l
+  ld h,a
+  adc a,a
+  ld l,a
+  ld (ThetaPrimeVar),hl
+  ret
+_:
+  ld hl,addSingle
+  jp float_stepin
+SubtractToken:
+  push bc
+  ld a,(hl)
+  cp 3Ah
+  jr z,+_
+  call ParseFullArg
+  pop hl
+  xor a
+  sbc hl,bc
+  ld b,h
+  ld c,l
+  ld h,a
+  ld l,a
+  ld (ThetaPrimeVar),hl
+  ret
+_:
+  ld hl,subSingle
+  jp float_stepin
+Cubed:
+  ld d,b
+  ld e,c
+  call DE_Times_BC
+  ex de,hl
+  jr mul_stepin
+Squared:
+  ld d,b
+  ld e,c
+  jr mul_stepin
+Multiply:
+  push bc
+  ld a,(hl)
+  cp 3Ah
+  jr z,+_
+  call ParseFullArg
+  pop de
+mul_stepin:
+  call DE_Times_BC
+  ld b,h
+  ld c,l
+  ld (ThetaPrimeVar),de
+  ret
+_:
+  ld hl,mulSingle
+float_stepin:
+  push hl
+  call ParseNextFullArg
+  push bc
+  call floatstackpush
+  ld b,h
+  ld c,l
+  pop de
+  pop hl
+  ld (next_page_call_address),hl
+  pop hl
+  jp next_page_call
+floatstackpush:
+  ld hl,(floatstack_ptr)
+  ld bc,4
+  add hl,bc
+  ld (floatstack_ptr),hl
+  ld a,l \ cp floatstack_top&255
+  ret nz
+#if (floatstack_top>>8)!=(floatstack_bottom>>8)
+  ld a,h \ cp floatstack_top>>8
+  ret nz
+#endif
+  ld hl,floatstack_bottom
+  ld (floatstack_ptr),hl
+  ret
+Comment:
+SkipLine:
+  bit floatmode,(iy+ModeFlags2)
+  jp nz,ConvRStr_Float
+  call EndOfLine
+  jp ParseArg2
+SkipLineDiv:
+  ld a,(hl)
+  cp 93h \ jp z,SlowText
+  cp 83h
+  jr z,SkipLine
+  cp 29h
+  jr nz,Divide
+  push bc
+  call ParseNextFullArg
+  pop hl
+;1366cc+6cc for every 0 bit in the result (up to +90cc
+;+48cc unless HL and BC are both positive
+;min: 1366cc
+;max: 1504cc
+;avg: 1447cc
+  ld a,h
+  xor b
+  push af
+  xor b
+  jp p,+_
+  xor a
+  sub l
+  ld l,a
+  sbc a,a
+  sub h
+  ld h,a
+_:
+  xor b
+  jp p,+_
+  xor a
+  sub c
+  ld c,a
+  sbc a,a
+  sub b
+  ld b,a
+_:
+  call HL_Div_BC
+  pop af
+  jp p,+_
+  xor a
+  sub l
+  ld l,a
+  sbc a,a
+  sub h
+  ld h,a
+_:
+  ld b,h
+  ld c,l
+  ld (ThetaPrimeVar),de
+  ret
+Divide:
+  push bc
+  ld a,(hl)
+  cp 3Ah
+  jr z,+_
+  call ParseFullArg
+  pop hl
+  call HL_Div_BC
+  ld b,h
+  ld c,l
+  ld (ThetaPrimeVar),de
+  ret
+_:
+  ld hl,divSingle
+  jp float_stepin
+PowToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadTOken
+  push bc
+  ld hl,powSingle
+  jp float_stepin
+
+_:
+  ld hl,expSingle
+  jp float_stepin_1
+PowerOf2:
+  ld a,(hl)
+  cp 3Ah
+  jr z,-_
+  call ParseFullArg
+  ld a,c
+  ld hl,0
+  ld d,h
+  ld e,h
+  cp 32
+  jr nc,Po2End
+  inc l
+  or a
+  jr z,Po2End
+  ld b,a
+_:
+  add hl,hl
+  rl e
+  rl d
+  djnz -_
+Po2End:
+  ld b,h
+  ld c,l
+  ret
+
+Logic:
+Equals:
+  ld a,(hl)
+  cp $3A
+  jr z,feq
+  push bc
+factorialStepIn:
+  call ParseFullArg
+  pop hl
+  xor a
+  sbc hl,bc
+  ld b,a
+  ld c,a
+  ret nz
+  inc c
+  ret
+feq:
+  call fcmp
+  ld bc,0
+  ret nz
+  inc c
+  ret
+fcmp:
+  push bc
+  call ParseNextFullArg
+  ld hl,cmpSingle
+  ld (next_page_call_address),hl
+  pop hl
+  ld d,b
+  ld e,c
+  jp next_page_call
+moreLogic:
+  push af
+  push bc
+  call ParseFullArg
+  pop hl
+  pop af
+  ret
+notLogic:
+  call MoreLogic
+  ld a,b \ cpl \ ld b,a
+  ld a,c \ cpl \ ld c,a
+  ret
+andLogic:
+  call MoreLogic
+  ld a,h \ and b \ ld b,a
+  ld a,l \ and c \ ld c,a
+  ret
+orLogic:
+  call MoreLogic
+  ld a,h \ or b \ ld b,a
+  ld a,l \ or c \ ld c,a
+  ret
+xorLogic:
+  call MoreLogic
+  ld a,h \ xor b \ ld b,a
+  ld a,l \ xor c \ ld c,a
+  ret
+Less:
+  ld a,(hl)
+  cp $3A
+  jr z,flt
+  call MoreLogic
+  xor a
+  sbc hl,bc
+  ld b,a
+  adc a,a
+  ld c,a
+  ret
+flt:
+  call fcmp
+  ld bc,0
+  ret nc
+  inc c
+  ret
+Greater:
+  ld a,(hl)
+  cp $3A
+  jr z,fgt
+  call MoreLogic
+  xor a
+  scf
+  sbc hl,bc
+  ccf
+  ld b,a
+  adc a,a
+  ld c,a
+  ret
+fgt:
+  call fcmp
+  ld bc,0
+  ret z
+  ret c
+  inc c
+  ret
+LessOrEqual:
+  ld a,(hl)
+  cp $3A
+  jr z,fle
+  call MoreLogic
+  xor a
+  scf
+  sbc hl,bc
+  ld b,a
+  adc a,a
+  ld c,a
+  ret
+fle:
+  call fcmp
+  ld bc,1
+  ret c
+  ret z
+  dec c
+  ret
+MoreOrEqual:
+  ld a,(hl)
+  cp $3A
+  jr z,fge
+  call MoreLogic
+  xor a
+  sbc hl,bc
+  ccf
+  ld b,a
+  adc a,a
+  ld c,a
+  ret
+fge:
+  call fcmp
+  ld bc,0
+  ret c
+  inc c
+  ret
+NotEqual:
+  ld a,(hl)
+  cp $3A
+  jr z,fne
+  call MoreLogic
+  xor a
+  sbc hl,bc
+  ld b,a
+  ld c,a
+  ret z
+  inc c
+  ret
+fne:
+  call fcmp
+  ld bc,0
+  ret z
+  inc c
+  ret
+
+RandToken:
+  ld a,(hl)
+  cp 3Ah
+  jr z,+_
+  call prng16
+  ld b,h
+  ld c,l
+  ret
+_:
+  inc hl
+  ld (parsePtr),hl
+  ld hl,randSingle
+float_stepin_0:
+  push hl
+  call floatstackpush
+  ld b,h
+  ld c,l
+  pop hl
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+
+
+
+tanToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,tanSingle
+  jp float_stepin_1
+atanToken:
+  ld a,(hl)
+  cp 3Ah
+  jr z,atan_float
+  call ParseFullArg
+  push bc
+  ld bc,128
+  cp 2Bh
+  call z,ParseNextFullArg
+  pop de
+  ld hl,atanbin
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+atan_float:
+  ld hl,atanSingle
+  jp float_stepin_1
+
+acosToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,acosSingle
+  jp float_stepin_1
+asinToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,asinSingle
+  jp float_stepin_1
+
+
+tanhToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,tanhSingle
+  jp float_stepin_1
+coshToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,coshSingle
+  jp float_stepin_1
+sinhToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,sinhSingle
+  jp float_stepin_1
+atanhToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,atanhSingle
+  jp float_stepin_1
+acoshToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,acoshSingle
+  jp float_stepin_1
+asinhToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,asinhSingle
+  jp float_stepin_1
+pow10Token:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,pow10Single
+  jp float_stepin_1
+
+meanToken:
+  ld a,(hl)
+  cp 3Ah
+  jp nz,ErrBadToken
+  ld hl,ameanSingle
+float_stepin_2:
+  push hl
+  call ParseNextFullArg
+  pop hl
+float_stepin_2_:
+  push bc
+  push hl
+  call ParseNextFullArg
+  push bc
+  call floatstackpush
+  ld b,h
+  ld c,l
+  pop de
+  pop hl
+  ld (next_page_call_address),hl
+  pop hl
+  jp next_page_call

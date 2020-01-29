@@ -1,0 +1,30 @@
+parser_interrupt:
+;First check the interrupt pointer. If it is NULL, then return
+  ld hl,(IntLoc)
+  ld a,h \ or l
+  ret z
+  ex de,hl
+
+;Decrement the counter. If it hits zero, fire the interrupt.
+  ld hl,(IntCount)
+  dec l
+  jr nz,+_
+  dec h
+  jr nz,+_
+
+;Need to save the current parser pointer and BC
+  ld hl,(parsePtr)
+  push hl
+  ld (parsePtr),de
+  set IntActiveFlag,(iy+InternalFlag)
+  push bc
+  call ParserNext
+  pop bc
+  pop hl
+  ld (parsePtr),hl
+  ld hl,(IntMax)
+
+_:
+  ld (IntCount),hl
+  res IntActiveFlag,(iy+InternalFlag)
+  ret

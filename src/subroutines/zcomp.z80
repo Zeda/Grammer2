@@ -1,0 +1,349 @@
+zcomp:
+  ld (zcomp_input_base),hl
+  ld (zcomp_input_size),bc
+  push de
+
+;initialize the frequency table
+  ld hl,zcomp_freq_table
+  ld bc,0
+_:
+  ld (hl),c
+  inc hl
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  inc hl
+  inc b
+  jr nz,-_
+
+;Now count the frequencies
+  ld hl,(zcomp_input_base)
+  ld bc,(zcomp_input_size)
+zcomp_freq_loop:
+  push hl
+  push bc
+  ld b,0
+  ld c,(hl)
+  ld hl,zcomp_freq_table
+  add hl,bc
+  add hl,bc
+  add hl,bc
+  inc (hl)
+  jr nz,$+4
+  inc hl
+  inc (hl)
+  pop bc
+  pop hl
+  cpi
+  jp pe,zcomp_freq_loop
+
+;Now sort by frequency
+  ld ix,zcomp_sort
+  ld bc,256
+  call heapsort
+
+;Count the number of unique bytes
+  ld c,0
+  ld hl,zcomp_freq_table+766
+_:
+  ld a,(hl)
+  dec hl
+  or (hl)
+  jr z,+_
+  dec hl
+  dec hl
+  inc c
+  jr nz,-_
+_:
+  ld a,c
+  ld (zcomp_table_len),a
+
+;count the size of the first partition
+  ld hl,(zcomp_freq_table+765)
+  ld (zcomp_part0_size),hl
+  ex de,hl
+  ld hl,(zcomp_input_size)
+  ;or a
+  sbc hl,de
+  ld (zcomp_part1_size),hl
+
+;Set up the partitions
+  ld hl,-1
+  ld (zcomp_best_size),hl
+  ld (zcomp_best_size+1),hl
+  ld a,1
+  ld (zcomp_partition_len),a
+  ld hl,zcomp_freq_table+765
+  push hl
+partition_loop:
+  call zcomp_getsize
+  ld a,(zcomp_partition_len)
+  ld b,a
+  add a,a
+  ld (zcomp_partition_len),a
+  ld hl,(zcomp_best_size)
+  ld a,(zcomp_best_size+2)
+  ;or a
+  sbc hl,de
+  sbc a,c
+  jr c,zcomp_partition_found
+  or h
+  or l
+  jr z,zcomp_partition_found
+
+  ld a,c
+  ld (zcomp_best_size),de
+  ld (zcomp_best_size+2),a
+  ex (sp),hl
+  push bc
+_:
+  push bc
+  dec hl
+  dec hl
+  ld b,(hl)
+  dec hl
+  ld c,(hl)
+  push hl
+
+  ld hl,(zcomp_part0_size)
+  add hl,bc
+  ld (zcomp_part0_size),hl
+
+  ld hl,(zcomp_part1_size)
+  ;or a
+  sbc hl,bc
+  ld (zcomp_part1_size),hl
+
+  pop hl
+  pop bc
+  djnz -_
+  pop af
+  ex (sp),hl
+  ;check if 2a<zcomp_table_len
+  add a,a
+  jr c,zcomp_partition_found
+  ld hl,zcomp_table_len
+  sub (hl)
+  jr c,partition_loop
+
+zcomp_partition_found:
+  pop hl
+  pop hl
+
+;Now we write the key to the output
+;first is the size of the key
+  ld a,(zcomp_table_len)
+  ld b,a
+  ld (hl),a
+  inc hl
+
+;next is the size of the first partition
+  ld a,(zcomp_partition_len)
+  rrca
+  ld (hl),a
+  push hl
+  inc hl
+
+;Now we write the actual key
+  ld de,zcomp_freq_table+767
+_:
+  ld a,(de)
+  ld (hl),a
+  inc hl
+  dec de
+  dec de
+  dec de
+  djnz -_
+
+;Before we continue, let's make an LUT to map each byte to its code
+  pop hl
+  ld a,(hl)
+  inc hl
+  push af
+  ld b,a
+  ld c,0
+  dec a
+  jr z,+_
+  inc c
+  srl a
+  jr nz,$-3
+_:
+  sla c
+  ld d,zcomp_keymap>>8
+zcomp_keymap_loop_0:
+  ld e,(hl)
+  inc hl
+  ex de,hl
+  ld (hl),c
+  inc h
+  ld (hl),a
+  dec h
+  ex de,hl
+  inc a
+  djnz zcomp_keymap_loop_0
+
+  pop bc    ;B is the size of the first partition
+  ld a,(zcomp_table_len)
+  sub b
+  ld b,a
+  ld c,0
+  dec a
+  jr z,+_
+  inc c
+  srl a
+  jr nz,$-3
+_:
+  sla c
+  inc c
+zcomp_keymap_loop_1:
+  ld e,(hl)
+  inc hl
+  ex de,hl
+  ld (hl),c
+  inc h
+  ld (hl),a
+  dec h
+  ex de,hl
+  inc a
+  djnz zcomp_keymap_loop_1
+
+;Write the size of the uncompressed data
+  ld bc,(zcomp_input_size)
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  inc hl
+
+;Now start compressing and writing out the data
+  ld de,(zcomp_input_base)
+  ld (hl),1
+zcomp_output_loop:
+  ld a,(de)
+  inc de
+  push de
+  push bc
+  ld d,zcomp_keymap>>8
+  ld e,a
+  ld a,(de)
+  srl a
+  rl (hl)
+  jr nc,+_
+  inc hl
+  ld (hl),1
+_:
+;A is the number of bits in the code
+  or a
+  jr z,zcomp_output_loop_end
+  inc d
+  ld b,a
+  ld a,8
+  sub b
+  ld c,a
+  ld a,(de)
+  jr z,+_
+  add a,a
+  dec c
+  jr nz,$-2
+_:
+
+  add a,a
+  rl (hl)
+  jr nc,$+5
+  inc hl
+  ld (hl),1
+  djnz -_
+
+zcomp_output_loop_end:
+  pop bc
+  pop de
+  dec bc
+  ld a,b
+  or c
+  jr nz,zcomp_output_loop
+_:
+  sla (hl)
+  jr nc,-_
+  inc hl
+  ex de,hl
+  ret
+
+zcomp_getsize:
+;zcomp_part0_size*log2(zcomp_partition_len);+zcomp_part1_size*log2(zcomp_table_len-zcomp_partition_len)
+  ld a,(zcomp_partition_len)
+  ld b,a
+  ld c,a
+  xor a
+  ld h,a
+  ld l,a
+  ld de,(zcomp_part0_size)
+_:
+  add hl,de
+  adc a,0
+  srl b
+  jr nz,-_
+
+  ld b,a
+  inc b
+  ld a,(zcomp_table_len)
+  sub c
+  ld c,a
+  ld a,b
+  ld de,(zcomp_part1_size)
+_:
+  add hl,de
+  adc a,0
+  srl c
+  jr nz,-_
+  add hl,de
+  adc a,c
+  ex de,hl
+  ld c,a
+  ret
+
+zcomp_sort:
+  rla
+  ex de,hl
+  ld hl,zcomp_freq_table
+  add hl,de
+  add hl,de
+  add hl,de
+  ;HL points to the first element
+  ex de,hl
+  ld hl,zcomp_freq_table
+  add hl,bc
+  add hl,bc
+  add hl,bc
+  rra
+  jr c,zcomp_sort_swap
+zcomp_sort_cmp:
+  ;compare the element at DE to the element at HL
+  inc hl
+  inc de
+  ld a,(de)
+  cp (hl)
+  ret nz
+  dec hl
+  dec de
+  ld a,(de)
+  cp (hl)
+  ret
+
+zcomp_sort_swap:
+;swap the 3 bytes at HL with the 3 bytes at DE
+  ld a,(de)
+  ldi
+  dec hl
+  ld (hl),a
+  inc hl
+
+  ld a,(de)
+  ldi
+  dec hl
+  ld (hl),a
+  inc hl
+
+  ld a,(de)
+  ldi
+  dec hl
+  ld (hl),a
+  ret

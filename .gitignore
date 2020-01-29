@@ -1,0 +1,10 @@
+/screenshot
+/old
+/readme
+/examples
+*.zip
+*.8*
+*.exe
+*.bin
+*.png
+*.gif

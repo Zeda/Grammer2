@@ -1,0 +1,104 @@
+;=====================================================
+TileMap1:
+;=====================================================
+;Inputs:
+;     DE=MapLoc
+;     BC=TileLoc
+;     HL=MapWidth
+;     A=TileLogic
+;     (TempWord2)=Map X
+;     (TempWord3)=Map Y
+;=====================================================
+  and 7
+  ld (TempWord1),a
+  cp 7
+  jr nz,+_
+  ld a,(flags+33)
+  xor 16
+  ld (flags+33),a
+_:
+  push bc
+  push hl
+  push de
+  ld bc,(TempWord3)
+  call HL_Times_BC
+  ld bc,(TempWord2)
+  add hl,bc
+  pop bc \ add hl,bc
+  ex (sp),hl ;edited in 2.50.0.2
+  ld de,-12  ;
+  add hl,de  ;
+  pop de     ;
+  ld (TempWord2),hl
+  xor a
+  ld (TempWord1+1),a
+  pop bc
+;DE points to first Map Element
+;(TempWord2) is the map width thing
+;BC points to the sprite data
+  ld h,12
+TileMap1loop:
+  ld a,(de) \ inc de
+  dec h
+  jr nz,DrawNextTile
+  ld hl,(TempWord2)
+  add hl,de
+  ex de,hl
+  ld h,12
+DrawNextTile:
+  push hl
+  ld h,0 \ ld l,a
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  ld a,(TempWord1)
+  cp 7
+  jr nz,+_
+  add hl,hl
+_:
+  add hl,bc
+  ld a,(TempWord1+1)
+  call DrawTile
+  ld (TempWord1+1),a
+  pop hl
+  jr nz,TileMap1Loop
+  ret
+DrawTile:
+;Input:
+;     A is the tile number to draw
+;     HL points to the sprite data
+;Output:
+;     A is incremented by 1
+;     BC is not changed
+;     DE is not changed
+;     HL is not changed
+;     z flag set if A is 96
+  sub 96
+  ret nc
+  push af
+  push hl
+  push de
+  push bc
+  ex de,hl
+;DE points to sprite
+  ld hl,(gbuf_temp)
+  inc h
+  inc h
+  inc h
+  ld bc,-96
+_:
+  add hl,bc
+  add a,12
+  jr nc,-_
+  ld c,a
+  inc b
+  add hl,bc
+  ld bc,0108h
+  ld a,(TempWord1)
+  call DrawSpriteXxY
+  pop bc
+  pop de
+  pop hl
+  pop af
+  add a,97
+  ret

@@ -1,0 +1,95 @@
+#define label_index_size OP1
+;This code sets up data for the program to execute
+;It indexes labels, and sets up space for variables.
+progmeta:
+;Set first byte to $FF to indicate the start of the labels index.
+;  Next two bytes are size
+;  Need to verify at least five bytes.
+;
+  ld hl,(OPS)
+  ld de,(FPS)
+  or a
+  sbc hl,de
+  ld de,5
+  sbc hl,de
+  ret c   ;not enough RAM
+  ld b,h
+  ld c,l
+  ld hl,(OPS)
+  srl b
+  rr c
+  inc bc
+;BC is the number entries available
+  ld (hl),$FF
+  dec hl
+  dec hl
+  dec hl
+;  ld (label_index_ptr),hl
+  ld (label_index_size),bc
+;
+  ex de,hl      ;points to where to write the pointers
+  ld bc,(progStart)
+  ld hl,(progEnd)
+  xor a
+  sbc hl,bc
+  ld b,h
+  ld c,l
+  ld hl,(progStart)
+;HL points to the start of the program
+;BC is the size of the program
+  call +_
+;gotta update pointers and such
+;((OPS)-DE-3)/2 is number of entries
+  ld hl,(OPS)
+  or a
+  sbc hl,de
+  srl h
+  rr l
+  dec hl
+  ex de,hl
+  ld hl,(OPS)
+  dec hl
+  ld (hl),d
+  dec hl
+  ld (hl),e
+  ret
+_:
+  ld a,$3A    ;decimal point token
+  cpir
+  ret nz
+  ret po
+  ex de,hl
+  ld (hl),d
+  dec hl
+  ld (hl),e
+  dec hl
+  ex de,hl
+  push hl
+  ld hl,(label_index_size)
+  dec hl
+  ld (label_index_size),hl
+  ld a,h
+  or l
+  pop hl
+  jr nz,-_
+  ret
+#undefine label_index_size
+
+pushlabel:
+;write the label string to the stack, null-terminated, followed by the address
+  ret
+findlabel:
+;Check if the next byte is "
+;   - if not, then just exit
+;   - Otherwise, look for the label in the label stack
+;     - if found
+;       - If the pointer is not zero, write to the output
+;         stream .db $ED \ .dw addr
+;       - If the pointer is zero, increment the size field
+;         and add the address to the list.
+;     - Otherwise, write the label string to the stack,
+;       null-terminated, followed by 0x0000, then a
+;       16-bit word for the number of references (in this case,
+;       initialize to 0x0001 the address), followed by the
+;       address where to write when found
+  ret

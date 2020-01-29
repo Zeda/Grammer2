@@ -1,0 +1,56 @@
+chardim:
+;Get the height and width of a char in the current font.
+;Input: A is the char
+;Output: B is the width, C is height
+;Destroys: A
+  ld b,a
+  ld a,(textmode)
+  dec a
+  jr z,var_width_size
+  dec a
+  jr z,OS_large_size
+  dec a
+  jr z,grammer_small_size
+  dec a
+  jr z,OS_small_size
+OS_large_size:
+  ld bc,$0608
+  ret
+grammer_small_size:
+  ld bc,$0406
+  ret
+
+OS_small_size:
+  call os_char_ptr
+  ld a,3
+  ld de,lfont_record
+  ld bc,1
+  call readarc
+  ld bc,(lFont_record-1)
+  ld c,6
+  ret
+
+var_width_size:
+  push hl
+  push de
+  ld hl,(FontPointer)
+  ld d,a
+  .db $C2  ;start of `jp nz,*`
+_:
+  add a,2
+  ld e,a
+  add hl,de
+  ld a,(hl)
+  ;a is w,h in nibbles
+  and 15
+  djnz -_
+  ld c,a
+  xor (hl)
+  rrca
+  rrca
+  rrca
+  rrca
+  ld b,a
+  pop de
+  pop hl
+  ret

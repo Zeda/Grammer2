@@ -1,0 +1,92 @@
+  ld a,b
+  or a
+  jp nz,ErrPkgNotFound
+  ex de,hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  inc b
+  dec b
+  jr nz,+_
+  ld a,c
+  cp 4
+  jp c,ErrBadToken
+_:
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  ld a,b
+  or c
+  jp z,ErrBadToken
+  ld de,(parsePtr)
+  call binSearch
+  jp nz,ErrBadToken
+  ld (parsePtr),de
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  ld de,moduleExec
+  ldir
+  jp moduleExec
+binSearch:
+;HL points to the binLUT
+;BC is the size
+;DE points to the token to find
+  ld (binLUT),hl
+  ld (binmax),bc
+  ld hl,0
+  ld (binmin),hl
+;binsearchloop:
+  ld hl,(binmax)
+  ld bc,(binmin)
+  or a
+  sbc hl,bc
+  ret c
+  rr h \ rr l
+  add hl,bc
+  call bincompare
+  ret z
+  jr c,+_   ;means input<compare
+  ld (binmin),hl
+  jp binsearchloop
+_:
+  ld (binmax),hl
+  jp binsearchloop+3
+bincompare:
+;z returned if a match, DE needs to point to new parsePtr, HL points to byte after ending byte in teh matched code
+;nz returned if no match, return HL unchanged.
+  push hl
+  add hl,hl
+  ld bc,(binLUT)
+  add hl,bc
+  ld a,(hl)
+  inc hl
+  ld h,(hl)
+  ld l,a
+  add hl,bc
+  push de
+_:
+  ld a,(de) \ cp (hl)
+  inc de \ inc hl
+  jr nz,+_
+  call isEOT
+  jr nz,-_
+  pop af
+  pop af
+  cp a
+  ret
+_:
+  pop de
+  pop hl    
+  ret
+isEOT:
+;End Of Token includes (, ' ', {, [, \n, :
+  or a \ ret z
+  cp $3E \ ret z  ;:
+  cp $3F \ ret z  ;\n
+  cp $10 \ ret z  ;(
+  cp $29 \ ret z  ;space
+  cp $3A \ ret    ;.

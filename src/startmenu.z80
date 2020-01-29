@@ -1,0 +1,397 @@
+startmenu__:
+;need to add in the options at the bottom
+;add title at the top
+;Need to set the filter flags
+;Need to draw the menu box
+;Need to show <status><name><type>
+;Show 7 programs at a time
+
+;First we set up the initial data and pointers
+  call SetUpData
+
+;Delete temp programs (archived progs are copied to temp programs)
+  bcall(_DeleteTempPrograms)
+
+;Sort the VAT, but put the calc in 15MHz mode if possible in order to speed it up
+  ld c,1
+  call SetSpeed
+
+;Set up some pointers for VAT traversal
+  ld hl,sortVAT
+  ld (next_page_call_address),hl
+  call next_page_call
+
+;Set the default gbuf to appBackUpScreen and clear it
+  ld hl,appBackUpScreen
+  ld (gbuf_temp),hl
+  ld (BufPtr),hl
+  ld (GrayBufPtr),hl
+  call ZeroMem768
+
+;Set speed to 6MHz, take advantage of A=0 fom ZeroMem768
+  out (20h),a
+
+;now we are going to draw the top and bottom fields
+;Top line
+  ;ld a,-1
+  dec a   ;A is zero from ZeroMem768
+  ld hl,appBackUpScreen+672
+  ld b,12
+  call SetSmallMem
+;bottom line
+  ld hl,appBackUpScreen+96
+  ld b,12
+  call SetSmallMem
+
+;Header text (version number)
+  ld hl,StrVersion
+  ld bc,$0301
+  call GPutSS
+;Options
+  ld hl,58
+  ld (TextRow),hl
+  call GPutSI
+  .db "Gram AppV Asm  Exit More",0
+;draw the bars between the options
+  ld de,$0111
+_:
+  ld bc,0838h
+  push de
+  ld a,d
+  call DrawRectToGraph
+  pop de
+  ld a,e
+  add a,20
+  ld e,a
+  cp 96
+  jr c,-_
+;highlight the 'Grammer' filter option
+  call highlight_Gram
+
+;Need to set the filter flags.
+  ld (iy+34),8
+
+;Draw the menu box
+  call DrawRectToGraphI \ .db 16,10,44,64,1
+  call DrawRectToGraphI \ .db 15,11,42,66,2
+redraw_menu:
+; Erase contents of the menu box
+  call DrawRectToGraphI \ .db 16,11,42,64,0
+
+;Reset the menu data
+  ld hl,(progPtr)
+  ld (VATptr),hl
+;  ld (VATptr_next),hl
+  call VATPtrToOP1
+  ld hl,0
+  ld (main_menu_cursor),hl   ;L=cursor, h=cursor_max
+  ld (main_menu_index),hl
+
+;Load the first seven entries (if possible)
+_:
+  call isStartMenu_valid
+  jr nz,+_
+  ld hl,(VATPtr)
+  ld (VATPtr_next),hl   ;just a safe place to store it
+  call NextVAT_valid_draw_advance_stepin
+  jr startVATloop
+_:
+  call NextVAT_valid_draw
+  jr c,main_menu_loop
+  ld hl,(VATPtr)
+  ld (VATPtr_next),hl   ;just a safe place to store it
+startVATloop:
+  call NextVAT_valid_draw
+  jr c,+_
+  ld a,(main_menu_cursor_max)
+  cp 7
+  jr nz,startVATloop
+_:
+  ld de,(VATPtr_next)
+  ld hl,(VATPtr)
+  ld (VATPtr_next),hl
+  ld (VATPtr),de
+main_menu_loop:
+;here we need to draw the cursor highlight
+  ld a,(main_menu_cursor)
+  ld l,a
+  add a,a
+  add a,l
+  add a,a
+  add a,11    ;y coord
+  ld b,6
+  ld c,a
+  ld de,$4010
+  push bc
+  ld a,2
+  call DrawRectToGraph
+  call GraphToLCD
+  pop bc
+  ld de,$4010
+  ld a,2
+  call DrawRectToGraph
+
+main_menu_ui_loop:
+  in a,(4)
+  and 8
+  ret z
+  call GetKeyDebounce
+  or a
+  jr z,main_menu_ui_loop
+  cp 15 \ ret z ;clear
+  cp 50 \ ret z ;F4 (Exit)
+  cp 49
+  jr z,$+6
+  cp 55
+  jr nz,+_
+  ld hl,modemenu
+  ld (next_page_call_address),hl
+  call next_page_call
+  jp startmenu__
+_:
+  cp 53 \ jr nz,+_  ;F1 (Gram)
+  ld a,(flags+34)
+  xor 8
+  ld (flags+34),a
+  ld de,$1100
+  jr highlight_option
+_:
+  cp 52 \ jr nz,+_  ;F2 (AppV)
+  ld a,(flags+34)
+  xor 64
+  ld (flags+34),a
+  ld de,1312h
+highlight_option:
+  call highlight
+  jp redraw_menu
+_:
+  cp 51 \ jr nz,+_ ;F3
+  ld a,(flags+34)
+  xor 4
+  ld (flags+34),a
+  ld de,1326h
+  jr highlight_option
+_:
+
+  ld hl,main_menu_cursor
+  cp 54     ;[2nd]
+  jr z,+_
+  cp 12     ;[*]
+  jp z,main_menu_archunarch
+  dec a \ jr z,cur_dn   ;down
+  sub 3 \ jp z,cur_up   ;up
+  cp 5      ;[Enter]-4
+  jp nz,main_menu_ui_loop
+_:
+;here ENTER is pressed
+;need to load the variable name into OP1
+  call main_menu_get_var_name
+  call isStartMenu_valid
+  call z,SelectedProgOP1
+  jp startmenu__
+
+main_menu_get_var_name:
+  ld a,(hl)
+  or a
+  jr z,selected_entry
+_:
+  push af
+  call NextVAT_valid
+  pop af
+  dec a
+  jr nz,-_
+selected_entry:
+  ld hl,(VATPtr)
+  jp VATPtrToOP1
+
+cur_dn:
+  ld a,(hl)
+  inc a
+  inc hl
+  cp (hl)
+  jr nc,+_
+  dec hl
+  ld (hl),a
+  jp main_menu_loop
+_:
+  cp 7
+  jp nz,main_menu_ui_loop
+;here we need to scroll down.
+;This means we need to advance VATPtr and VATPtr_next
+;draw VATPtr_next
+
+;first, advance VATPtr_next
+  ld hl,(VATPtr)
+  push hl
+  ld hl,(VATPtr_next)
+  ld (VATPtr),hl
+  call NextVAT_valid
+  pop hl
+  ld de,(VATPtr)
+  ld (VATPtr),hl
+  jp c,main_menu_ui_loop
+_:
+  ld (VATPtr_next),de
+;now we know there are more entries
+;shift the menu up, then draw the entry, then advance VATPtr
+  ld de,appBackUpScreen+134
+  ld hl,appBackUpScreen+206
+  ld a,36
+_:
+  call mov8
+  inc l \ inc hl
+  inc l \ inc hl
+  inc e \ inc de
+  inc e \ inc de
+  dec a
+  jr nz,-_
+;We need to clear the bottom 6 rows of pixels
+  call DrawRectToGraphI \ .db 16,47,6,64,0
+  ld a,6
+  call draw_var_name
+  call NextVAT_valid
+  ld hl,(main_menu_index)
+  inc hl
+  ld (main_menu_index),hl
+  jp main_menu_loop
+cur_up:
+  ld a,(hl)
+  or a
+  jr z,+_
+  dec (hl)
+  jp main_menu_loop
+_:
+;now we need to scroll up. Verify that main_menu_index!=0
+  ld hl,(main_menu_index)
+  ld a,h
+  or l
+  jp z,main_menu_ui_loop
+  dec hl
+  ld (main_menu_index),hl
+  ld hl,(VATPtr)
+  push hl
+  ld de,(VATPtr_next)
+  call PrevVAT_valid_with_start
+;  call PrevVAT_with_start
+  ld hl,(VATPtr)
+  ld (VATPtr_next),hl
+  pop hl
+  ld (VATPtr),hl
+  call PrevVAT_valid
+;need to shift the screen up
+  ld hl,appBackUpScreen+561
+  ld de,appBackUpScreen+633
+  ld a,36
+_:
+  ldd \ ldd \ ldd \ ldd
+  ldd \ ldd \ ldd \ ldd
+  dec l \ dec hl
+  dec l \ dec hl
+  dec e \ dec de
+  dec e \ dec de
+  dec a
+  jr nz,-_
+  call DrawRectToGraphI \ .db 16,11,6,64,0
+  call draw_var_name
+  jp main_menu_loop
+
+highlight_Gram:
+  ld de,$1100
+highlight:
+  ld bc,0739h
+  ld a,2
+  jp DrawRectToGraph
+NextVAT_valid_draw:
+  call NextVAT_valid
+  ret c
+NextVAT_valid_draw_advance_stepin:
+  ld hl,main_menu_cursor_max
+  ld a,(hl)
+  inc (hl)
+  call draw_var_name
+  or a
+  ret
+NextVAT_valid:
+  ld hl,(VATPtr)
+  push hl
+  call +_
+  pop hl
+  ret nc
+  ld (VATPtr),hl
+  ret
+_:
+  call NextVAT
+  ret c
+  call isStartMenu_valid
+  jr nz,-_
+  or a
+  ret
+draw_var_name:
+  push af
+  bcall(_ChkFindSym)
+  pop af
+  ld h,b
+  call calculate_text_coord
+  xor a
+  ld (OP1+9),a
+  or h
+  ld a,' '
+  jr z,+_
+  ld a,'*'
+_:
+  call PutSC
+  ld hl,OP1+1
+  call GPutS
+  ld a,16
+  ld (textCol),a
+  ld a,(OP1)
+  cp 15h
+  ld hl,s_appv
+  jr z,+_
+  ld hl,s_prog
+_:
+  jp GPutS
+
+main_menu_archunarch:
+; Calculate the text text coord for the archive status symbol
+  ld a,(hl)
+  push af
+  call calculate_text_coord
+  pop af
+
+  call main_menu_get_var_name
+  call isStartMenu_valid
+  jp nz,main_menu_loop
+  ; ld a,(OP1)
+  ; push af
+  bcall(_Arc_Unarc)
+
+; Need to fix the RAM code after archiving/unarchiving.
+  call setup_readarc
+
+;   pop af
+;   ld (OP1),a
+;
+; ; Need to overwrite the archive status symbol
+;   bcall(_ChkFindSym)
+;   inc b
+;   dec b
+;   ld a,' '
+;   jr z,+_
+;   ld a,'*'
+; _:
+;   call PutSC
+
+  jp redraw_menu
+
+
+calculate_text_coord:
+  ld c,a
+  add a,a
+  add a,c
+  add a,a
+  add a,11    ;y coord
+  ld c,a
+  ld b,4
+  ld (textRow),bc
+  ret

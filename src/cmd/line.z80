@@ -1,0 +1,240 @@
+LineToken:
+
+  call ParseNextFullArg_Inc
+  push bc
+  call ParseNextFullArg
+  pop de
+  ld b,e
+  push bc
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  pop de
+  ld b,e
+  push bc
+  cp $2b
+  ld c,1
+  call z,ParseNextFullArg
+  cp $2b
+  ld a,c
+  push af
+  call ParseNextFullArg_BC
+  cp $2b
+  jr nz,L5971
+  inc hl
+  ld a,(hl)
+  cp $ae
+  jr nz,+_
+  call ParseNextFullArg_Inc
+  push bc
+  jr L596f
+_:
+  ld hl,$80ff
+  push hl
+_:
+  push hl
+  call ParseNextFullArg
+  pop hl
+  ld (hl),c
+  dec l
+  jp p,+_
+  cp $2b
+  jr z,-_
+_:
+  ld (hl),$ff
+L596f:
+  pop ix
+L5971:
+  pop af
+  pop de
+  pop hl
+  ld c,a
+  ld a,d
+  sub h
+  ld d,a
+  ld a,e
+  sub l
+  ld e,a
+  ld a,c
+DrawLine:
+  di
+  res FactorialFlag,(iy+InternalFlag)
+  res Mod2nd,(iy+InternalFlag)
+  bit 2,a
+  jr z,+_
+  set FactorialFlag,(iy+InternalFlag)
+_:
+  bit 3,a
+  jr z,+_
+  set Mod2nd,(iy+InternalFlag)
+_:
+  and $f3
+  ld bc,$A62F
+  dec a
+  jr nz,+_
+  ld bc,$00B6
+_:
+  dec a
+  jr nz,+_
+  ld bc,$00AE
+_:
+  ld ($8101),bc
+  ld a,$ff
+  ld ($811a),a
+  res grayMode,(iy+InternalFlag)
+  ld a,(ix)
+  bit Mod2nd,(iy+InternalFlag)
+  jr nz,+_
+  inc a
+_:
+  ld ($8109),a
+  or a
+  call z,L7158
+  ld c,0
+  ld a,d
+  bit 7,a
+  jr z,+_
+  neg
+  set 6,c
+  ld d,a
+_:
+  ld a,e
+  bit 7,a
+  jr z,+_
+  neg
+  set 7,c
+  ld e,a
+_:
+  ld b,a
+  ex af,af'
+  ld a,c
+  exx
+  rla
+  ld de,12
+  ld bc,1
+  jr nc,+_
+  ld de,-12
+_:
+  rla
+  jr nc,+_
+  dec bc
+  dec bc
+_:
+  exx
+  ld a,h
+  push hl
+  push bc
+  ld h,00
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  ld c,a
+  sra c
+  sra c
+  sra c
+  jp p,+_
+  dec b
+_:
+  add hl,bc
+  ld bc,(gbuf_temp)
+  add hl,bc
+  and $07
+  ld b,a
+  ld a,$80
+  jr z,+_
+  rrca
+  djnz $-1
+_:
+  push hl
+  exx
+  pop hl
+  exx
+  ex af,af'
+  pop bc
+  pop hl
+  sla e
+  jr nz,L5a2b
+  ld b,d
+_:
+  call L5a6f
+  call L5a5d
+  djnz -_
+  ret
+
+L5a2b:
+ sla d
+L5a2d:
+ call L5a6f
+ sub d
+ jr c,L5a39
+ call L5a4b
+ djnz L5a2d
+ ret
+
+L5a39:
+ call L5a5d
+ add a,e
+ jr c,L5a45
+ call L5a6f
+ jp L5a39
+L5a45:
+ call L5a4b
+ djnz L5a2d
+ ret
+
+L5a4b:
+ bit Mod2nd,(iy+InternalFlag)
+ call nz,$8106
+ exx
+ add hl,de
+ exx
+ inc l
+ bit 7,c
+ ret z
+ dec l
+ dec l
+ ret
+
+L5a5d:
+ ex af,af'
+ rrca
+ inc h
+ bit 6,c
+ jr z,+_
+ dec h
+ dec h
+ rlca
+ rlca
+_:
+  jr nc,+_
+  exx
+  add hl,bc
+  exx
+_:
+  ex af,af'
+  ret
+
+L5a6f:
+  bit FactorialFlag,(iy+InternalFlag)
+  call nz,$8106
+  bit grayMode,(iy+InternalFlag)
+  ret nz
+  push af
+  ld a,l
+  cp $40
+  jr nc,+_
+  ld a,h
+  cp $60
+  jr nc,+_
+  ex af,af'
+  exx
+  call $8100
+  exx
+  ex af,af'
+_:
+  pop af
+  ret
+.echo "DrawLine : ",$-DrawLine

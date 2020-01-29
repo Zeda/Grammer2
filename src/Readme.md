@@ -1,0 +1,1 @@
+My near-term plan is to do some simple optimizations when copying programs to RAM. My first idea is to replace all Lbl commands with their actual pointer value since labels are static. This will also allow me to remove labels/comments from executing code making it smaller and slightly faster. Note that I won't be doing this to code already in RAM :(

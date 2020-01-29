@@ -1,0 +1,10 @@
+;All routines must be 768 bytes or less
+;They get copied to saveSScreen
+#ifndef EXCLUDE_GRAMPKG_INC
+#include "grammer.inc"
+#include "grammer2.5.inc"
+#endif
+  .db "Gram"
+  .dw MODULE_VERSION    ;minimum version
+  .dw (+_-2-$)/2
+_:

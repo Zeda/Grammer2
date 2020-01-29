@@ -1,0 +1,137 @@
+;These routines were made by Zeda Thomas, feel free to use them!
+;
+;These utility routines are for resizing data within an edit buffer.
+;The routines intended for use are:
+;   delmem
+;   insertmem
+;
+;These require the following variables:
+;   (buf_end) points to the end of the data in the buffer
+;   (buf_top) points to the end of the edit buffer itself
+;
+;Both routines take a pointer in HL, and a signed number of bytes in BC.
+;For example, if you try to insert -3 bytes at HL, 3 bytes will be removed.
+;Useful for when you just want to resize but don't know if you'll be inserting
+;or removing.
+;
+;Also, though these routines are tested, there might be bugs. Since this messes
+;with potentially large portions of RAM, if something does go wrong, there will
+;be data loss. I made efforts to detect errors and exit with the carry flag set
+;if an error was detected, but just know that I'm not perfect. (yet?)
+;
+;Credit me if you want; I'm not your mom (unless I am). But realistically, you
+;will want to redirect potential bug reports to me, unless you feel like you can
+;fix it. But if you can, I'll want you to redirect the fixes to me, please!
+
+insertmem_negate:
+  xor a
+  sub c
+  ld c,a
+  sbc a,a
+  sub b
+  ld b,a
+  jr insertmem_pos
+insertmem:
+;Input:
+;   HL points to where the mem needs to be inserted
+;   BC is the number of bytes to insert, signed
+;Outputs:
+;   carry flag set if it failed
+;   carry flag is reset on success
+;   If BC was negative, bytes deleted, else inserted
+;   preserves HL
+;Destroys:
+;   A,DE
+;   BC is 0 on success, else destroyed
+  ld a,b
+  add a,a
+  jr c,delmem_negate
+insertmem_pos:
+  or c
+  ret z
+  push hl
+  ld h,b
+  ld l,c
+  ld de,(buf_end)
+  add hl,de
+  push de
+  ex de,hl
+  ld hl,(buf_top)
+  or a
+  sbc hl,de
+  jr c,insertmem_fail
+  pop hl
+  ld (buf_end),de
+  pop bc
+  push hl
+  or a
+  sbc hl,bc
+  ld b,h
+  ld c,l
+  pop hl
+  ret z
+  dec hl
+  dec de
+  lddr
+  ex de,hl
+  ret
+
+delmem_negate:
+  xor a
+  sub c
+  ld c,a
+  sbc a,a
+  sub b
+  ld b,a
+  jr delmem_pos
+delmem:
+;Input:
+;   HL points to where the mem needs to be removed
+;   BC is the number of bytes to remove, signed
+;Outputs:
+;   carry flag set if it failed
+;   carry flag is reset on success
+;   If BC was negative, bytes inserted, else deleted
+;   preserves HL
+;Destroys:
+;   A,DE
+;   BC is 0 on success, else destroyed
+  ld a,b
+  add a,a
+  jr c,delmem_negate
+delmem_pos:
+  or c
+  ret z
+
+
+;save HL to return
+  push hl
+
+;need to move (buf_end)-(HL+BC) bytes from HL+BC to HL
+  ld d,h
+  ld e,l
+  add hl,bc
+  ex de,hl
+
+;need to move (buf_end)-DE bytes from DE to HL
+  push hl
+  ld hl,(buf_end)
+  or a
+  sbc hl,de
+  jr c,delmem_fail ;don't want to delete more bytes than are left in the buffer!
+  ld b,h
+  ld c,l
+  pop hl
+  ex de,hl
+
+;need to move BC bytes from HL to DE
+  jr z,deledmem     ;don't need to move any bytes
+  ldir
+deledmem:
+  ld (buf_end),de   ;update buf_end
+
+delmem_fail:
+insertmem_fail:
+;restore HL
+  pop hl
+  ret

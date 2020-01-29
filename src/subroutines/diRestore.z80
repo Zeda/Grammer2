@@ -1,0 +1,24 @@
+diRestore:
+;Disables interrupts and sets up a return function to restore them
+    ex (sp),hl
+    push hl
+    push af
+    ld hl,restoreei
+    ld a,r
+    jp pe,+_
+    ld hl,restoredi
+_:
+    di
+    pop af
+    inc sp
+    inc sp
+    ex (sp),hl
+    dec sp
+    dec sp
+    ret
+restoredi:
+    di
+    ret
+restoreei:
+    ei
+    ret

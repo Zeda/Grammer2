@@ -1,0 +1,179 @@
+;If the numbers are 1 digit, the output will be larger :(
+;If the numbers are 2 digits, the output will be the same size :|
+;If the number is 3 digits, less than 256, the output will be smaller! (3 digits, but >=256 is same size :|)
+;All other numbers will be more compact!
+;
+;When a comment/label is parsed, we need to instead copy it to an LUT at the back, along with the address where it would be inserted.
+;If the "Lbl " command is come across, first search for if the label has already found.
+;  If yes, just replace it with a pointer value
+;  If no, then store a pointer of 0x0000, and in another LUT, if the name does not exist yet, add it along with the address, else append the address to it.
+;Move Strings to the data section
+;
+;Parse through the source, looking for '.' or 'Lbl ' (0x3A and 0xD6, respectively)
+
+compile:
+;A is passed in as the byte to parse
+;DE is where to output
+;HL is where the input is
+;Be careful not to overlap or exceed data_top
+  inc hl  ;We are going to do nothing :P
+  inc de
+  ret
+
+
+  cp 2Ah
+  jp z,compile_string
+  sub 3Ah
+  add a,10
+  jp c,compile_number
+  inc hl
+  inc de
+  ret
+compile_string:
+;move the string to the data section and replace with a relative pointer
+;We are removing the starting quote, but adding 3 bytes for the pointer. Net gain of two bytes.
+
+;We need to verify that we have two bytes available
+  ld bc,2
+  call enoughmem
+  jp c,err_LowMem
+
+;The easy way to do this is to copy the string to the data section, and leave a gap between the in_head and out_head
+;However, if we only have three bytes or RAM available, and the string is 4 bytes, we'll be overwriting stuff!
+;Instead, we'll copy the string to saveSScreen in up to 768 byte chunks, shift the source down copy the string to the end of the source (essentially rotating), then move the string data to the end
+;It's slower, but better on RAM usage :)
+
+;Save the pointers of the output and input
+  inc hl
+  push de
+  ld (TempWord1),hl
+  call GetGrammerStr
+  inc bc
+  ld hl,(TempWord1)
+  ld (TempWord2),bc
+compile_str_loop:
+  ld a,b
+  sub 3
+  jr c,compile_str_finalchunk
+  ld b,a
+  push bc
+  ld bc,768
+  ld de,saveSScreen
+  ldir
+  ;So now we move (end_of_src)-HL bytes at DE to (TempWord1)
+  push de
+  ex de,hl
+  ld hl,(end_of_src)
+  or a
+  sbc hl,de
+  ld b,h
+  ld c,l
+  pop hl
+  ld de,(TempWord1)
+  jr z,+_
+  ldir
+_:
+  pop bc
+  jr compile_str_loop
+compile_str_finalchunk:
+  ld a,b
+  or c
+  ld de,saveSScreen
+  jr z,compile_str_adjust
+  ldir
+  ;So now we move (end_of_src)-HL bytes at DE to (TempWord1)
+  push de
+  ex de,hl
+  ld hl,(end_of_src)
+  or a
+  sbc hl,de
+  ld b,h
+  ld c,l
+  pop hl
+  ld de,(TempWord1)
+  jr z,compile_str_adjust
+  ldir
+compile_str_adjust:
+  ld hl,(data_top)
+  ld bc,(TempWord2)
+  or a
+  sbc hl,bc
+  ld (data_top),hl
+  ex de,hl
+
+  ld hl,(end_of_src)
+  ld bc,(TempWord2)
+  or a
+  sbc hl,bc
+  ld (end_of_src),hl
+
+
+  ld a,b
+  or c
+  jr z,+_
+  ldir
+_:
+
+;Now we need to insert two bytes at (TempWord1)
+  ld de,(TempWord1)
+  ld hl,(end_of_src)
+  sbc hl,de
+  jr z,+_
+  ld b,h
+  ld c,l
+  add hl,de
+  ld d,h
+  ld e,l
+  inc de
+  dec hl
+  ldir
+_:
+
+  ld hl,(end_of_src)
+  inc hl
+  inc hl
+  ld (end_of_src),hl
+
+  ld hl,(end_of_buffer)
+  ld de,(data_top)
+  sbc hl,de
+  ex de,hl
+;DE is the relative pointer
+
+  ld hl,(TempWord2)
+  dec hl
+  ld (hl),tok_NegRelPtr
+  inc hl
+  ld (hl),e
+  inc hl
+  ld (hl),d
+  inc hl
+  ld d,h
+  ld e,l
+  ret
+compile_number:
+;If it is an int, we need to replace with a uint8, uint16
+;If it is a float, we need to move it to the data section and replace with a relative pointer
+  inc hl
+  inc de
+  ret
+enoughmem:
+;Returns nc if there are at least BC bytes available. Preserves registers.
+;Need data_top-end_of_src>=BC
+;We'll check data_top>=BC+end_of_src
+
+;preserve HL
+  push hl
+
+  ld hl,(end_of_src)
+  add hl,bc
+  jr c,+_       ;checking for wayyy too much RAM
+;preserve DE
+  push de
+  ex de,hl
+  ld hl,(data_top)
+  sbc hl,bc
+  pop de
+_:
+  pop hl
+  ret

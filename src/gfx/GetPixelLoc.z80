@@ -1,0 +1,44 @@
+pixLUT:
+  .db $80,$40,$20,$10,$08,$04,$02,$01
+GetPixelLoc:
+;Input:
+;     b is X
+;     c is y
+;Output:
+;     HL points to byte
+;     A is the mask
+;     nc if not computed, c if computed
+;Speed: 192+17{1,2,3,4,5,6,7,8}
+;Avg: 268.5cc
+;185cc
+  ld a,c
+  cp 64
+  ret nc
+  add a,a
+  add a,a
+  ld c,a
+  ld a,b
+  cp 96
+  ret nc
+
+  ld b,0
+  ld hl,(gbuf_temp)
+  add hl,bc
+  add hl,bc
+  add hl,bc
+  ld c,a
+  srl c
+  srl c
+  srl c
+  add hl,bc
+  and 7
+  ld b,pixLUT>>8
+  add a,pixLUT&255
+  ld c,a
+#if pixLUT&255>249
+  jr nc,$+3
+  inc b
+#endif
+  ld a,(bc)
+  scf
+  ret

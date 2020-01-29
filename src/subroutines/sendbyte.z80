@@ -1,0 +1,32 @@
+SendByte:
+;E is the byte to send
+;BC is the wait length
+  ld a,3
+  out (0),a
+  ld d,a
+_:
+  in a,(0)
+  and d
+  jr nz,+_
+  dec bc
+  ld a,b
+  or c
+  jr nz,-_
+  dec bc
+  ret
+_:
+  ld b,8
+SendByteLoop:
+;E is the byte to send
+;D is the mask
+  xor a
+  rlc e
+  jr c,+_    ;could use rla
+  inc a
+_:
+  out (0),a
+  djnz SendByteLoop
+  xor a
+  out (0),a
+  ld c,a
+  ret

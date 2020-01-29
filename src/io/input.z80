@@ -1,0 +1,357 @@
+#define CUR_COUNT_RESET 23
+_IsA2ByteTok  = 42A3h
+keyflags    = 35
+shift     = 0
+alpha     = 1
+shiftprev = 2
+alphaprev = 3
+holdmod   = 4
+cursorblink = 7
+
+curcount    = scrap+8
+penTemp     = curcount+1
+textRow_base= penTemp+2
+input_end_text = textRow_base+2
+input_head  = input_end_text+2
+input_top   = input_head+2
+input_curptr= input_top+2
+
+
+input:
+;Inputs: DE points to the ending string
+;Save the location of the ending string
+  ld (input_end_text),de
+
+;Save the text pointer for when we clear input.
+  ld hl,(textRow)
+  ld (textRow_base),hl
+
+;set up the input buffer
+  ld hl,(input_base)
+  ld (input_head),hl
+  ld (input_curptr),hl
+  xor a
+  ld (hl),a
+  ld bc,(input_size)
+  add hl,bc
+  dec hl    ;make room for ending NULL
+  ld (input_top),hl
+
+;Clear the input
+  call input_clear
+
+;clear input mode
+  xor a
+  ld (flags+keyflags),a
+
+;Set text mode to overwrite, but save original settings
+  ld a,(OutputLogic)
+  push af
+  xor a
+  ld (OutputLogic),a
+
+;Clear out any keypresses
+  out (1),a
+_:
+  in a,(1)
+  inc a
+  jr nz,-_
+
+;write 0xFF to the key port to flush
+;  dec a
+;  out (1),a
+
+; ;Save the user flags since we'll be modifying them for text
+;   ld a,(flags+UserFlags)
+;   push af
+
+;Print the current input
+  call inp_dispstr
+
+; ;Restore the user flags
+;   pop af
+;   ld (flags+UserFlags),a
+
+;Restore text coords
+  ld hl,(penTemp)
+  ld (textRow),hl
+
+;Get input
+  call inputloop
+
+;Restore text logic
+  pop af
+  ld (OutputLogic),a
+
+;redraw the screen to show cursor removed and modebox removed
+  call inp_disp
+
+;append a null byte to end the input string.
+  ld hl,(input_head)
+;  ld (hl),0
+  ld (hl),$3F       ;Grammer needs a newline token
+  ld hl,(input_base)
+  ret
+inputloop:
+  ld hl,(textRow)
+  ld (penTemp),hl
+  res cursorblink,(iy+keyflags)
+  ld a,CUR_COUNT_RESET>>1
+  ld (curcount),a
+input_key_loop:
+  in a,(4)
+  and 8
+  jp z,input_ON
+
+;blink the cursor
+  ld hl,curcount
+  dec (hl)
+  jr nz,+_
+  ld (hl),CUR_COUNT_RESET
+  ld a,(flags+keyflags)
+  xor 1<<cursorblink
+  ld (flags+keyflags),a
+  and 1<<cursorblink
+  ld a,' '
+  call nz,getcursorchar
+  call inp_VPutMap
+;  res InvertTextFlag,(iy+UserFlags)
+  call inp_disp
+  ld hl,(penTemp)
+  ld (textRow),hl
+_:
+  ld hl,getKeyDebounce
+  ld (prev_page_call_address),hl
+  call prev_page_call
+  or a
+  jr z,input_key_loop
+  push af
+  ld a,' '
+  call inp_VPutMap
+  ld hl,(penTemp)
+  ld (textRow),hl
+  pop af
+  cp 9
+  ret z
+  call +_
+  jr inputloop
+_:
+  ; dec a
+  ; jr z,input_cursor_down
+  ; dec a
+  ; jr z,input_cursor_left
+  ; dec a
+  ; jr z,input_cursor_right
+  ; dec a
+  ; jr z,input_cursor_up
+  ; add a,4
+  cp 15
+  jr z,input_clear
+  cp 56
+  jr z,input_del
+  call getKeyTok
+  ret c
+  ld a,d
+  ld c,e
+  sub 1
+  inc a
+  ccf
+  ld de,(input_head)
+  ld hl,(input_top)
+  sbc hl,de
+  ret z
+  ret c
+
+  ex de,hl
+  or a
+  jr z,+_
+  ld (hl),a
+  inc hl
+_:
+  ld (hl),c
+  inc hl
+  ld (hl),0
+  ld (input_head),hl
+  call inp_dispstr
+  call inp_disp
+
+;Restore text coords
+  ld hl,(penTemp)
+  ld (textRow),hl
+  ret
+; input_cursor_down:
+;   ret
+; input_cursor_up:
+;   ret
+; input_cursor_left:
+;   ret
+; input_cursor_right:
+; ;make sure we aren't at the end of input
+;   ld hl,(input_curptr)
+;   ld a,(hl)
+;   or a
+;   ret z
+;
+; ;Advance to the next tokem
+;   call VPutTok  ;advances text, sets HL to point to the next token
+;   ld (input_curptr),hl
+;
+; ;Save the new text coordinates
+;   ld hl(textRow)
+;   ld (penTemp),hl
+;   ret
+
+input_clear:
+  call +_
+  jr c,input_clear
+  jp inp_disp
+input_del:
+  call +_
+  jp inp_disp
+_:
+  ld de,(input_head)
+  ld hl,(input_base)
+  or a
+  sbc hl,de
+  ret z
+  ;jp nc,fatal_error
+  ex de,hl
+  dec hl
+  ld (input_head),hl
+  ld e,(hl)
+  ld d,0
+  dec hl
+  ld a,(hl)
+  bcall(_IsA2ByteTok)
+  jr nz,+_
+  ld d,a
+  ld (input_head),hl
+  .db $FE     ;start of `cp *`, skips the `inc hl`
+_:
+  inc hl
+  ld (hl),0
+  ;DE is the token to erase
+
+  ;redraw the input so that we know where to start drawing spaces!
+  push de
+  call inp_dispstr
+  pop de
+
+  ld hl,OP3
+  ld a,d
+  or a
+  jr z,+_
+  ld (hl),d
+  inc hl
+_:
+  ld (hl),e
+  ld l,OP3&255
+  bcall(_Get_Tok_Strng)
+;BC is the length of the string
+  ld a,b
+  or c
+  jr z,input_del_finish
+
+;Now draw spaces for each char
+  ld hl,OP3
+_:
+  push bc
+  push hl
+  ld a,(hl)
+  call vput_space_p1
+  pop hl
+  pop bc
+  cpi
+  jp pe,-_
+input_del_finish:
+  ld hl,(penTemp)
+  ld (textRow),hl
+  scf
+  ret
+
+inp_disp = p1_GraphToLCD
+
+input_ON:
+  ld hl,ONErr
+  ld (prev_page_call_address),hl
+  call prev_page_call
+  jp inp_disp
+inp_dispstr:
+;Reset text coords
+  ld hl,(textRow_base)
+  ld (textRow),hl
+
+;Draw the current input
+  ld hl,(input_base)
+  call inp_VPutTokS
+
+;Save the text coordinate
+  ld hl,(textRow)
+  ld (penTemp),hl
+
+;Draw a blank space:
+;  xor a      ;already zero from VPutS
+  call inp_VPutMap
+
+;Draw the end text
+  ld hl,(input_end_text)
+  call inp_VPutS
+
+
+;Draw another blank space:
+;  xor a
+  jp inp_VPutMap
+_:
+  push hl
+  bcall(_IsA2ByteTok)
+  push af
+  bcall(_Get_Tok_Strng)
+  ; ld hl,OP3+1
+  ; add hl,bc
+  ; ld (hl),0
+  ld hl,OP3
+  call inp_VPutS
+  pop af
+  pop hl
+  inc hl
+  jr nz,$+3
+  inc hl
+inp_VPutTokS:
+  ld a,(hl)
+  or a
+  jr nz,-_
+  ret
+inp_VPutS:
+  push hl
+  ld hl,GPutS
+  ld (prev_page_call_address),hl
+  pop hl
+  jp prev_page_call
+inp_VPutMap:
+  push hl
+  ld hl,PutSC
+  ld (prev_page_call_address),hl
+  pop hl
+  jp prev_page_call
+vput_space_p1:
+  ld hl,vput_space
+  ld (prev_page_call_address),hl
+  jp prev_page_call
+
+input_mode_LUT:
+.db $E0,$1E,"Aa"
+
+getcursorchar:
+  ; set InvertTextFlag,(iy+UserFlags)
+  ld a,(flags+keyflags)
+  ld hl,input_mode_LUT
+  and 3
+  add a,l
+  ld l,a
+#if input_mode_LUT&255>252
+  jr nc,+_
+  inc h
+_:
+#endif
+  ld a,(hl)
+  ret

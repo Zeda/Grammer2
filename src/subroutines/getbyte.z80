@@ -1,0 +1,18 @@
+GetByte:
+  ld d,3
+  ld bc,-1
+  xor a
+  out (0),a
+  in a,(0)
+  xor d
+  ret z
+  ld bc,0800h
+_:
+  in a,(0)
+  bit 1,a
+  jr nz,-_
+  out (0),a
+  rra
+  rl c
+  djnz -_
+  ret

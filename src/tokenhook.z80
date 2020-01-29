@@ -1,0 +1,91 @@
+TokenHook:
+  .db $83
+  inc b
+  dec b
+  ret nz
+  push hl
+  ld hl,(iMathPtr1)
+  inc hl
+  inc hl
+  ld a,3Ah
+  cp (hl)
+  jr nz,tokenhook_pop1exit
+  inc hl
+  ld a,30h
+  cp (hl)
+  jr nz,tokenhook_pop1exit
+  inc hl
+  ld a,3Eh
+  cp (hl)
+  jr nz,tokenhook_pop1exit
+  ld b,0
+  dec d
+  inc d
+  ld hl,TokenTable_0
+  jr z,TokenSearchLoop
+  ld hl,TokenTable_1
+TokenSearchLoop:
+  ld a,e
+  cp (hl)
+  inc hl
+  jr z,ChkByte2
+NotTokenMatch:
+  inc hl
+  ld c,(hl)
+  inc c
+  add hl,bc
+  ld a,(hl)
+  or a
+  jr nz,TokenSearchLoop
+tokenhook_pop1exit:
+  pop hl
+  ret
+ChkByte2:
+  ld a,d
+  cp (hl)
+  jr nz,NotTokenMatch
+  pop de
+  ld de,OP1
+  inc hl
+  ld c,(hl)
+  inc c
+  ldir
+  ld hl,OP1-1
+  ret
+NoChange:
+TokenTable:
+TokenTable_0:
+; .db $02,0,7,"module."
+ .db $02,0,1,$F2    ;$
+ .db $04,0,6,$05,"Float"
+ .db $06,0,8,5,"lFactor"
+ .db $28,0,7,"Insert("
+ .db $36,0,7,"ClrPart"
+ .db $38,0,7,"RunPart"
+ .db $3A,0,8,"AddPart("
+ .db $3C,0,9,"PartType("
+ .db $44,0,5,"Misc("
+ .db $58,0,1,5Fh
+ .db $BE,0,5,"call "
+ .db 0
+
+TokenTable_1:
+ .db $38,1,5,"Rect("
+ .db $3C,1,5,"Tile("
+ .db $3E,1,7,"Sprite("
+ .db $40,1,8,"TileMap("
+ .db $48,1,9,"Contrast("
+ .db $4E,1,9,"ShiftBuf("
+ .db $62,1,7,"WriteB("
+ .db $70,1,4,"Inv("
+ .db $72,1,7,"WriteW("
+; .db $7E,1,2,"2^"
+ .db $A6,1,4,"For "
+ .db $B4,1,7,"GetInc("
+ .db $B6,1,7,"GetDec("
+ .db $BC,1,7,"SetBuf("
+ .db $C0,1,8,"SetFont("
+ .db $CE,1,8,"MakeVar("
+ .db $D0,1,8,"FindVar("
+ .db $72,4,4,"gbuf"
+ .db 0

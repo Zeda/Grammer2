@@ -1,0 +1,161 @@
+getKeyChar:
+;converts a key press to a char
+;returns c flag set if not a valid key
+    cp 54 \ jr nz,+_
+    ;If previous state was [2nd], set normal, else set [2nd]
+    ld a,(keyflags+flags)
+    res shift,(iy+keyflags)
+    res alpha,(iy+keyflags)
+    and 3
+    dec a
+    scf
+    ret z
+    set shift,(iy+keyflags)
+    ret
+_:
+    cp 48 \ jr z,mod_alpha
+    sub 1
+    ret c
+    bit alpha,(iy+keyflags)
+    jr nz,chkalphakey
+    cp 47
+    ccf
+    ret c
+    bit shift,(iy+keyflags)
+    res shift,(iy+keyflags)
+    ld hl,shiftkeyLUT
+    jr nz,+_
+    ld hl,regkeyLUT
+_:
+    add a,l
+    ld l,a
+    jr nc,+_
+    inc h
+_:
+    ld a,(hl)
+    sub 1
+    ret
+chkalphakey:
+;either uppercase or lowercase
+    call toAlpha
+    ret c
+
+    bit shift,(iy+keyflags)
+    jp z,mod_reset
+    call mod_reset
+    cp 'Z'+1
+    ret z
+    cp 22h \ jr nz,+_ \ ld a,27h \ ret
+_:
+    cp '?' \ jr nz,+_ \ ld a,'!' \ ret
+_:
+    cp ' ' \ jr nz,+_ \ ld a,$EE \ ret    ;EE is triple space
+_:
+    cp ':' \ jr nz,+_ \ ld a,';' \ ret
+_:
+    add a,20h
+    ret
+mod_alpha:
+    ld a,(keyflags+flags)
+    ;if previous state was [ALPHA], switch to [alpha]
+    ;If previous state was [alpha], switch to normal
+    ;If previous state was [2nd], set the holdmod bit and set [ALPHA]
+    and $FC
+    ld b,a
+    ld a,(keyflags+flags)
+    and 3
+    jr nz,+_
+    set alpha,b
+_:
+    dec a
+    jr nz,+_
+    set holdmod,b
+    set alpha,b
+_:
+    dec a
+    jr nz,+_
+    set shift,b
+    set alpha,b
+_:
+    ld a,b
+    ld (flags+keyflags),a
+    scf
+    ret
+toAlpha:
+    cp 9
+    ret c
+    jr nz,+_
+    ld a,22h
+    ret
+_:
+    cp 47
+    ccf
+    ret c
+    ld c,a
+    cpl
+    and 7
+    ld b,a
+    rla
+    rla
+    add a,b
+    srl c
+    srl c
+    srl c
+    sub c
+    cp 3
+    jr c,+_
+    cp 5
+    ret c
+    sub 2
+_:
+    cp 27
+    ret z
+    jr nc,+_
+    add a,'A'
+    ret
+_:
+    sub 29
+    jr nz,+_
+    ld a,' '
+    ret
+_:
+    dec a
+    jr nz,+_
+    ld a,':'
+    ret
+_:
+    ld a,'?'
+    ret
+mod_reset:
+  bit holdmod,(iy+keyflags)
+  ret nz
+  res shift,(iy+keyflags)
+  res alpha,(iy+keyflags)
+  ret
+
+regKeyLUT:
+.db $20,0,0,$1F     ;down,left,right,up
+.db 0,0,0,0,$D7
+.db $2C,$2E,$2B,$30,$5F   ;+-*/^
+.db 0,0
+.db $1B,$34,$37,$3A,$2A   ;neg369)
+.db 0,0,0
+.db $2F,$33,$36,$39,$29   ;.258(
+.db 0,0,0
+.db $31,$32,$35,$38,$2D   ;0147,
+.db 0,0,0,0
+.db $1D          ;sto
+.db 0,0
+.db $13,$12           ;sqrd, inv
+
+shiftKeyLUT:
+.db $08,$D0,$06,$07
+.db 0,0,0,0,0,$61
+.db $5E,$C2,$DC,$C5
+.db 0,0,0,0,0
+.db $05,$7D
+.db 0,0,0
+.db $D8,0,0,$04,$7C
+.db 0,0,$DD
+.db $60,0,0,$03,$1C,0,$14,0
+.db 0,0,0,$1E,$11,$17

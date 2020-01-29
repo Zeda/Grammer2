@@ -1,0 +1,24 @@
+main:
+  call StartMenu
+  xor a
+  ld (kbdScanCode),a
+_:
+  call GetKey
+  or a
+  jr nz,-_
+	bcall(_clrTxtShd)
+  bcall(_saveCmdShadow)
+  bcall(_JForceCmdNoChar)
+StartMenu:
+  ld bc,0
+  ld (TempWord3),a
+  ld (TempWord4),bc
+  ld (TempWord5),hl
+  call FindGVarData
+  ld a,b \ or a
+  jr nz,+_
+_:
+  in a,(6)
+  ld hl,GrammerHook
+  bcall(_SetParserHook)
+#include "startmenu.z80"

@@ -1,0 +1,79 @@
+;SearchString is used by inString  and Lbl
+
+
+
+
+searchstring_routine:
+;Inputs:
+;     HL points to the string to search
+;     BC size of the string to search
+;     DE points to string to find
+;     IX is the size of the string to find
+;Outputs:
+;     c flag set if there was a match, nc if no match was found
+;     HL points to the match if there was one
+;     DE is preserved
+;Destroys:
+;     A,BC
+
+;First, we'll do BC-IX -> BC, and make sure it isn't negative
+
+  push hl
+
+  ld h,b
+  ld l,c
+  push ix
+  pop bc
+  dec bc
+;Save the size of the string to find
+  ld (TempWord1),bc
+  or a
+  sbc hl,bc
+  ld b,h
+  ld c,l
+  pop hl
+
+  ret z
+  ccf
+  ret nc  ;This means the input was smaller than the string to search for!
+
+
+  jr searchstring_begin
+searchstring_match:
+  dec hl
+  scf
+  ret
+
+_:
+;at this point, we have a match
+;now we need to compare the strings
+  push hl
+  push de
+  push bc
+  call +_
+  pop bc
+  pop de
+  pop hl
+  jr z,searchstring_match  ;we found our match!
+  ld a,b
+  or c
+  jr z,searchstring_nomatch+1
+searchstring_begin:
+  ld a,(de)
+  cpir
+  jr z,-_
+searchstring_nomatch:
+  xor a
+  ld h,a
+  ld l,a
+  ret
+
+_:
+  ld bc,(TempWord1)
+_:
+  inc de
+  ld a,(de)
+  cpi
+  ret nz
+  jp pe,-_
+  ret

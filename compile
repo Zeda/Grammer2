@@ -1,0 +1,19 @@
+#!/bin/bash
+
+cd src
+
+echo -e "\e[1m\e[37mGenerating grammer2.5.inc\e[0m"
+python jt.py jmptable.z80 grammer2.5.inc
+cp grammer2.5.inc ../docs/grammer2.5.inc
+
+#echo -e "\e[1m\e[37mAssembling Default Package\e[0m"
+#spasm grampkg.z80 ../bin/grampkg.8xv
+
+echo -e "\e[1m\e[37mAssembling App\e[0m"
+spasm grammer.z80 ../bin/grammer.8xk -I ../z80float/single
+
+# Check for an experimental package
+if [ ! -f "experimental/experimental.z80" ];then
+  echo -e "\e[1m\e[37mAssembling Experimental Package\e[0m"
+  spasm experimental/experimental.z80 ../bin/EXPRMNTL.8xv -I single
+fi

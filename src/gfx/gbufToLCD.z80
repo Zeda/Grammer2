@@ -1,0 +1,269 @@
+GraphToLCD_:
+  ld hl,(BufPtr)
+  ld de,(GrayBufPtr)
+
+BufferToLCD_:
+;Input:
+;     HL points to the buffer to copy to the LCD
+;     DE points to a secondary buffer to use in grayscale
+;     (graymask) has the gray mask
+;     (graymask+1) is the method
+;     expects the LCD to be in X-increment mode
+;       (If you don't know what this means, you probably don't have to worry!)
+;Outputs:
+;     HL is incremented by 12
+;     DE is incremented by 12
+;Destroys:
+;     AF,BC,IX
+;       This might change in the future, but A and C are the gray mask, B is 0,
+;       and IX points to the routine that mixes the pixels from two layers
+  di
+  ld a,(graymask+1)
+  or a
+  ld ix,gray2
+  jr z,+_
+  ld ix,gray3
+  dec a
+  jr z,+_
+gbuftoLCD_4:
+  ld ix,gray4
+  sub 15
+  jr c,+_
+  dec a
+  jp z,mask_buffer_to_LCD
+  ld ix,LCD_buf_OR
+_:
+
+; Expect that the LCD increment mode is already set to increment down
+;
+; We shouldn't need a delay here!
+;  in a,(16) \ rla \ jr c,$-3
+
+; Set the LCD pointer to the top row
+  ld a,$80
+  out (16),a
+
+;We have to wait for the LCD anyways, so may as well do something useful.
+;Get the gray mask and put it in C
+  ld a,(graymask)
+  ld c,a
+
+;Wait for the LCD to be ready for new data
+  in a,(16) \ rla \ jr c,$-3
+
+; Set the LCD pointer to the left-most column of 8 pixels
+  ld a,$20
+
+col:
+;Set the column
+  out (10h),a
+
+;Save the column number
+  push af
+
+;Set B to 64, we'll be writing a whole column, so 64 writes.
+  ld b,64
+_:
+
+;Now wait for the LCD to be ready
+  in a,(16) \ rla \ jr c,$-3
+
+;IX points to our mask routine. It rotates the mask and computes the next byte.
+  call call_ix_01    ;rotate the mask
+  bit InvertLCDFlag,(iy+userflags)
+  jr z,$+3
+  cpl
+  out (17),a
+
+;We are drawing in columns, so we need to advance HL by 12
+  ld a,12
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+
+;And advance DE by 12
+  ld a,12
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+
+  djnz -_
+
+;Rotate the mask an extra time. We want to keep it out of phase.
+  dec ix
+  call call_ix_01    ;rotate the mask
+  inc ix
+
+
+;Now point to HL to the start of the next column.
+;If we subtract 768, it is where it started, so we'd need to increment 1 more.
+;Basically, HL-(3*256)+1
+  dec h
+  dec h
+  dec h
+  inc hl
+
+;Same with DE
+  dec d
+  dec d
+  dec d
+  inc de
+
+;Restore A to the column number, then increment. If it hits $2C, we've drawn all
+;12 columns, so no more looping. Otherwise, draw the next column.
+  pop af
+  inc a
+  cp $2C
+  jp nz,col
+
+;Rotate the mask one final time. Our masks are either 2- or 3-cycles, and we
+;want to avoid a static image if possible!
+  call call_ix_01     ;rotate the mask one last time
+  ld a,c
+  ld (graymask),a
+  ret
+
+gray2:
+;This just grabs from the main buffer
+  ld a,(hl)
+  ret
+
+  nop
+gray3:
+;Toggles the mask between %10101010 and %01010101.
+  rlc c
+
+; Now we use C to select pixels from either (DE), or (HL).
+; If a bit in C is 0, the corresponding bit in the output is from (HL),
+; else it is from (DE). There is an explaination of this at the end.
+  ld a,(de)
+  xor (hl)
+  and c
+  xor (hl)
+  ret
+
+gray4:
+  ld a,c  ;\
+  cp $C0  ; | Rotate the graymask
+  rra     ; | Can be efficiently done by rotating left while
+  ld c,a  ;/  shifting in the XOR of the top two bits.
+
+; Now we use C to select pixels from either (DE), or (HL).
+; If a bit in C is 0, the corresponding bit in the output is from (HL),
+; else it is from (DE). There is an explaination of this at the end.
+  ld a,(de)
+  xor (hl)
+  and c
+  xor (hl)
+  ret
+
+LCD_buf_OR:
+  ld a,(de)
+  or (hl)
+  ret
+
+mask_buffer_to_LCD:
+;This will AND the secondary buf on to the tilemap_buf, then OR the primary buf
+;on to that.
+  ld ix,(tilemap_buf)
+
+; Expect that the LCD increment mode is already set to increment down
+;
+; We shouldn't need a delay here!
+;  in a,(16) \ rla \ jr c,$-3
+
+; Set the LCD pointer to the top row
+  ld a,$80
+  out (16),a
+
+;Wait for the LCD to be ready for new data
+  in a,(16) \ rla \ jr c,$-3
+
+; Set the LCD pointer to the left-most column of 8 pixels
+  ld a,$20
+
+maskcol:
+;Set the column
+  out (10h),a
+
+;Save the column number
+  push af
+
+;Set B to 64, we'll be writing a whole column, so 64 writes.
+  ld bc,$400C
+_:
+  push bc
+  ld a,(de)
+  and (ix)
+  xor (hl)
+  bit InvertLCDFlag,(iy+userflags)
+  jr z,$+3
+  cpl
+  push af
+
+  ld b,0
+  add hl,bc
+  ex de,hl
+  add hl,bc
+  ex de,hl
+  add ix,bc
+
+;Now wait for the LCD to be ready
+  in a,(16) \ rla \ jr c,$-3
+  pop af
+  out (17),a
+  pop bc
+  djnz -_
+
+;Now point to HL to the start of the next column.
+;If we subtract 768, it is where it started, so we'd need to increment 1 more.
+;Basically, HL-(3*256)+1
+  dec h
+  dec h
+  dec h
+  inc hl
+
+;Same with DE
+  dec d
+  dec d
+  dec d
+  inc de
+
+;Same with IX
+  dec ixh
+  dec ixh
+  dec ixh
+  inc ix
+
+;Restore A to the column number, then increment. If it hits $2C, we've drawn all
+;12 columns, so no more looping. Otherwise, draw the next column.
+  pop af
+  inc a
+  cp $2C
+  jp nz,maskcol
+  ret
+
+
+; How C can select from two different buffers
+;
+;
+;We'll use this magical formula:
+; ((x^y)&m)^y
+;
+;When m is 0:
+;   ((x^y)&m)^y
+; = ((x^y)&0)^y
+; = (0)^y
+; = y
+;
+;When m is 1:
+;   ((x^y)&m)^y
+; = ((x^y)&1)^y
+; = (x^y)^y
+; = x^(y^y)     ;We can do this when all operations are XOR
+; = x
+;
+;So a 0 in the mask will choose the pixel from (HL) (primary buffer),
+;and a 1 will choose a pixel from (DE) (gray/back/secondary buffer).

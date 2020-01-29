@@ -1,0 +1,493 @@
+.org $4000
+#define scrap 8000h
+#include "gfx/bigtile.z80"
+#include "isort.z80"
+;#include "compile.z80"
+
+drawrect:
+#include "gfx/drawrect.z80"
+#include "math/rand_single.z80"
+#include "math/atanbin.z80"
+#include "gfx/circle.z80"
+#include "gfx/filledcircle.z80"
+#include "gfx/tilemap.z80"
+
+p1_GraphToLCD:
+#include "gfx/gbufToLCD_speed.z80"
+
+call_ix_01:
+  jp (ix)
+
+pixelOn_pattern:
+  call getpixelloc
+  ret nc
+  or (hl)
+  ld (hl),a
+  ret
+pixelOff_pattern:
+  call getpixelloc
+  ret nc
+  cpl
+  and (hl)
+  ld (hl),a
+  ret
+pixelToggle_pattern:
+  call getpixelloc
+  ret nc
+  xor (hl)
+  ld (hl),a
+  ret
+
+#include "absSingle.z80"
+#include "negSingle.z80"
+#include "cmpSingle.z80"
+
+#include "randSingle.z80"
+
+#include "acosSingle.z80"
+#include "asinSingle.z80"
+#include "atanSingle.z80"
+#include "acoshSingle.z80"
+#include "asinhSingle.z80"
+#include "atanhSingle.z80"
+#include "coshSingle.z80"
+#include "sinhSingle.z80"
+#include "tanhSingle.z80"
+#include "tanSingle.z80"
+
+
+#include "powSingle.z80"
+#include "pow10Single.z80"
+#include "logSingle.z80"
+#include "lgSingle.z80"
+#include "log10Single.z80"
+
+#include "single2str.z80"
+#include "str2single.z80"
+#include "singleTo_int16.z80"
+
+
+#ifdef INCLUDE_GRAMPKG
+grampkg_start:
+#define EXCLUDE_GRAMPKG_INC
+#include "grampkg.z80"
+grampkg_end:
+#endif
+
+menu_code_start:
+#include "cmd/menu.z80"
+#include "cmd/searchstring.z80"
+
+#include "io/getKeyChar.z80"
+#include "io/getKeyTok.z80"
+#include "io/input.z80"
+#include "io/menu.z80"
+#include "io/sound.z80"
+
+#include "cmd/prime.z80"
+#include "cmd/param.z80"
+#include "cmd/solve.z80"
+#include "subroutines/searchline.z80"
+#include "subroutines/zlz_decomp.z80"
+#include "subroutines/zlz_comp.z80"
+#include "subroutines/heapsort.z80"
+#include "subroutines/zcomp.z80"
+
+p1_PutTokenText:
+  ld bc,PutTokenText
+  ld (prev_page_call_address),bc
+  jp prev_page_call
+
+p1_ParseFullArg:
+  ld hl,ParseFullArg
+  ld (prev_page_call_address),hl
+  jp prev_page_call
+
+p1_ParseNextFullArg:
+  ld hl,ParseNextFullArg
+  ld (prev_page_call_address),hl
+  jp prev_page_call
+
+p1_ParserNext:
+  ld hl,ParserNext
+  ld (prev_page_call_address),hl
+  jp prev_page_call
+
+p1_err_fatal:
+p1_err_syntax:
+  push hl
+  ld hl,err_fatal
+  jr jp_prev_page_call
+
+p1_ErrBadToken:
+  push hl
+  ld hl,ErrBadToken
+  jr jp_prev_page_call
+
+p1_ErrStackOverflow_push:
+  push hl
+  ld hl,ErrStackOverflow_push
+  jr jp_prev_page_call
+
+p1_ErrStackOverflow_pop:
+  push hl
+  ld hl,ErrStackOverflow_pop
+  jr jp_prev_page_call
+
+p1_ErrMem:
+  push hl
+  ld hl,ErrMem
+  jr jp_prev_page_call
+
+p1_VarP:
+  push hl
+  ld hl,VarP
+  jr jp_prev_page_call
+
+p1_parse_by_ptr_to_ptr:
+  push hl
+  ld hl,parse_by_ptr_to_ptr
+  jr jp_prev_page_call
+
+p1_GetGrammerStr:
+  push hl
+  ld hl,GetGrammerStr
+  jr jp_prev_page_call
+
+p1_GetVarInfo2:
+  push hl
+  ld hl,GetVarInfo2
+  jr jp_prev_page_call
+
+p1_GetVarInfo:
+  push hl
+  ld hl,GetVarInfo
+  jr jp_prev_page_call
+
+p1_EndOfLine:
+  push hl
+  ld hl,EndOfLine
+  jr jp_prev_page_call
+
+p1_getKeyDebounce:
+  push hl
+  ld hl,getKeyDebounce
+jp_prev_page_call:
+  ld (prev_page_call_address),hl
+  pop hl
+  jp prev_page_call
+
+verify_package:
+;A:HL points to the data
+;BC is the size of the data
+;Returns carry flag reset if good, carry set if bad
+
+;Need to read 4-byte magic number
+;Need to read the valid version number and size of table
+;Verify that the package has at least 8 bytes
+  inc b
+  dec b
+  jr nz,+_
+  ld b,a
+  ld a,c
+  cp 8
+  ld a,b
+  ret c
+_:
+;If magic number doesn't match, then we quit
+;If it does match, then we'll assume it is formatted
+;correctly. No need to save BC (or DE for that matter)
+;Just need A:HL
+
+  ld bc,6
+  ld de,cmdShadow
+  call ReadArc
+
+;magic number
+  ex de,hl
+  or a
+  ld hl,(cmdShadow)
+  .db 1 ;start of ld bc,**
+  .db "Gr"
+  sbc hl,bc
+  scf
+  ret nz
+  or a
+  ld hl,(cmdShadow+2)
+  .db 1 ;start of ld bc,**
+  .db "am"
+  sbc hl,bc
+  scf
+  ret nz
+;pkg version
+  ld hl,(cmdShadow+4)
+  ld bc,MODULE_VERSION-1
+  sbc hl,bc
+  ret
+
+FS_find_new:
+  ld hl,(FS_begin)
+  jr FS_find_new_start
+
+FS_find_new_loop:
+  ld b,a
+  ld c,a
+  cpir
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  add hl,bc
+FS_find_new_start:
+  xor a
+  cp (hl)
+  jr nz,FS_find_new_loop
+  ret
+
+FS_createvar_max_01:
+;Input:
+;   HL points to the name
+;   BC is the size of the name (sans null-byte)
+;Output:
+;   HL points to the data
+;   BC is the size
+;   DE points to the name
+;
+  push hl
+  push bc
+
+  call FS_find_new
+  ;HL points to where to write it
+  ;Make sure that HL+BC+2 - (FS_end) < 0
+  push hl
+  add hl,bc
+  inc hl
+  inc hl
+  ld de,(FS_end)
+  ; or a
+  sbc hl,de
+  jp nc,p1_ErrMem
+
+
+  ;Now -HL-1 is going to be the size of the var!
+  ld a,h
+  cpl
+  ld h,a
+  ld a,l
+  cpl
+  ld l,a
+
+
+  pop de
+  pop bc
+  ex (sp),hl
+  ;DE is where to write
+  ;HL is the string
+  ;BC is the size
+  push de
+  ldir
+  ex de,hl
+  pop de
+  pop bc
+  ld (hl),0
+  inc hl
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  inc hl
+  ret
+
+FS_delvar_01:
+  call FS_findvar_01
+  add hl,bc
+  ; or a
+  sbc hl,de
+  ; Need to delete HL bytes at DE
+
+  ;Need to set up the buf_end and buf_top, first
+  push hl
+  ld hl,(FS_end)
+  ld (buf_top),hl
+  call FS_find_new
+  ld (buf_end),hl
+  pop bc
+  ex de,hl
+  call delmem
+  ret nc
+  jp p1_ErrMem
+
+FS_resize_01:
+;HL points to the data
+;BC is the new size
+  ;Need to set up the buf_end and buf_top, though
+  ex de,hl
+  push bc
+  ld hl,(FS_end)
+  ld (buf_top),hl
+  call FS_find_new
+  ld (buf_end),hl
+  pop bc
+  ex de,hl
+
+  dec hl
+  ld d,(hl)
+  ld (hl),b
+  dec hl
+  ld e,(hl)
+  ld (hl),c
+  inc hl
+  inc hl
+  push hl
+  push bc
+
+  add hl,bc
+  ;HL points to the end of the data
+  ;need to deallocate DE-BC bytes (if negative, then bytes are allocated!)
+  ex de,hl
+;  or a
+  sbc hl,bc
+  ex de,hl
+
+  ld b,d
+  ld c,e
+  call delmem
+  pop bc
+  pop hl
+  ret nc
+  jp p1_ErrMem
+
+#include "subroutines/insertdelmem.z80"
+
+
+
+FS_findvar_01:
+;Input:
+;   HL points to the name of the var to find
+;Output:
+;   Carry flag is set if found
+;     HL points to the var's data
+;     DE pointing to the var name
+;     BC is the size
+;
+  ex de,hl
+  ld hl,(FS_begin)
+  jr FS_findvar_begin
+
+FS_findvar_loop:
+
+  ;Then assume the file is not malformed
+  push hl
+  push de
+  call cpstr
+  pop de
+  jr z,FS_file_found
+  pop af    ;Don't need to save the pointer to the file name
+
+
+  ;File not found, so seek the end of the name
+  xor a
+  ld b,a
+  ld c,a
+  cpir
+
+  ;Now HL points to the size bytes
+  ;need to skip the data
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  add hl,bc
+
+FS_findvar_begin:
+  ;Check if there are any more files
+  ld a,(hl)
+  or a
+  ret z
+
+  ;Check if HL is past FS_end
+  ld bc,FS_end
+  or a
+  sbc hl,bc
+  add hl,bc
+  ret z
+  jr c,FS_findvar_loop
+  scf
+  ret
+
+FS_file_found:
+  inc hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  pop de
+  ret
+
+_:
+  inc de
+  inc hl
+cpstr:
+;Compare two strings at HL and DE
+;returns z if they are equal
+;returns c is DE points to the smaller string
+;returns nc if DE is the bigger (or equal) string.
+  ld a,(de)
+  cp (hl)
+  ret nz
+  or a
+  jr nz,-_
+  ret
+
+LblToken_01:
+  call p1_ParseFullArg
+  push bc
+  ld h,b
+  ld l,c
+  call p1_GetGrammerStr
+  pop hl
+  push bc
+
+  ld de,OP2
+  ld a,3Fh
+  ld (de),a
+  inc de
+  ld a,3Ah
+  ld (de),a
+  inc de
+  ldir
+  ld a,3Fh
+  ld (de),a
+  ld hl,(parsePtr)
+  ld a,(hl)
+  cp 2Bh
+  jr nz,+_
+  inc hl
+  ld (parsePtr),hl
+  call p1_GetVarInfo2
+  jr nc,LblToken_ptrdone
+_:
+  ld hl,(progEnd)
+  ld de,(progStart)
+  or a
+  sbc hl,de
+  ld b,h
+  ld c,l
+  ex de,hl
+LblToken_ptrdone:
+  ld de,OP2
+  pop ix
+  ld de,3
+  add ix,de
+  ld de,OP2
+  call searchstring_routine
+  jp nc,p1_ErrBadToken
+  inc hl
+  call p1_EndOfLine
+  ld b,h
+  ld c,l
+  ret
+
+#include "tokenhook.z80"
+#include "modemenu.z80"
+
+.echo "Page 1: ",$8000-$," bytes remaining"

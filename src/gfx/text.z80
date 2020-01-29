@@ -1,0 +1,460 @@
+;===============================================================
+PutSM:
+;===============================================================
+;Inputs:
+;     hl points to the string to display
+;     bc is the size of the string
+;===============================================================
+  ld a,b \ or c \ ret z
+_:
+  push bc
+  push hl
+  ld a,(hl)
+  call PutSC
+  pop hl
+  pop bc
+  cpi
+  jp pe,-_
+  ret
+
+GPutSS:
+  ld (textRow),bc
+  jr GPutS
+
+_:
+  push hl
+  call PutSC
+  pop hl
+GPutS:
+  ld a,(hl)
+  inc hl
+  or a
+  jr nz,-_
+  ret
+
+PutSC:
+;Inputs:
+;     a is the char to draw
+;     (textRow) is the pixel row to draw at
+;     (textCol) is the text column to draw at (0 to 23)
+;===============================================================
+  call +_
+typewriter_delay:
+  bit SlowTextFlag,(iy+InternalFlag)
+  ret z
+  push af
+  push hl
+  call GraphToLCD
+  pop hl
+  ld a,(TextPauseTime)
+  ei
+  halt
+  dec a
+  jr nz,$-2
+  di
+  pop af
+  ret
+_:
+  ld bc,(textmode)
+  ld b,0
+  ld hl,putc_LUT
+  add hl,bc
+  add hl,bc
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  ex de,hl
+  jp (hl)
+putc_LUT:
+  .dw PutFS
+  .dw VPutC
+  .dw VPutSC
+  .dw OmniCalcFont
+  .dw VPutC_OS_small
+  .dw VPutC_OS_large
+
+PutFS:
+  push af
+  ld bc,(textRow)
+  ld a,b
+  cp 24
+  ld a,c
+  jr c,+_
+  ld b,0
+  add a,6
+_:
+  cp 3Bh
+  jr c,+_
+  sub 3Ch
+  jr nc,+_
+  add a,6
+_:
+  ld c,a
+  inc b
+  ld (textRow),bc
+  dec b
+  ld hl,(FontPointer)
+  pop af
+  push bc
+  ld b,0
+  ld c,a
+  add hl,bc
+  add hl,bc
+  adc hl,bc
+  jp p,+_
+  ld a,h
+  add a,-$40
+  ld h,a
+_:
+  ld a,(font_ptr_page)
+  ld bc,3
+  adc a,b
+  ld de,$8005
+  call readarc
+  pop bc
+  ld a,b
+  ld b,0
+  ld h,b
+  ld l,c
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  rra
+  push af
+  ld c,a
+  add hl,bc
+  ld bc,(gbuf_temp)
+  add hl,bc
+  ld bc,060Ch
+  pop af
+  ld de,$8005
+  jr c,PutRight
+;===============================================================
+PutLeft:
+;===============================================================
+  ld a,(hl)
+  and 15
+  ld (hl),a
+  ld a,(de)
+  bit InvertTextFlag,(iy+UserFlags)
+  jr z,+_
+  cpl
+_:
+  bit 0,b
+  jr z,+_
+  rlca \ rlca \ rlca \ rlca
+  inc de
+_:
+  and $F0
+  or (hl)
+  ld (hl),a
+  ld a,b
+  ld b,0
+  add hl,bc
+  ld b,a
+  djnz PutLeft
+  ret
+;===============================================================
+PutRight:
+;===============================================================
+  ld a,(hl)
+  and $F0
+  ld (hl),a
+  ld a,(de)
+  bit InvertTextFlag,(iy+UserFlags)
+  jr z,+_
+  cpl
+_:
+  bit 0,b
+  jr nz,+_
+  rlca \ rlca \ rlca \ rlca
+  dec de
+_:
+  inc de
+  and 15
+  or (hl)
+  ld (hl),a
+  ld a,b
+  ld b,0
+  add hl,bc
+  ld b,a
+  djnz PutRight
+  ret
+OmniCalcFont:
+;Inputs:
+;    A is the char to draw
+  ld l,a
+  ld h,0
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,bc
+  ld bc,(FontPointer)
+  adc hl,bc
+  jp p,+_
+  ld a,h
+  add a,-$40
+  ld h,a
+_:
+  ld a,(font_ptr_page)
+  ld bc,7
+  adc a,b
+  ld de,$8005
+  call readarc
+  ld de,$8005
+  ld b,7
+_:
+  ld a,(hl)
+  rlca
+  rlca
+  rlca
+  ld (de),a
+  inc e
+  inc hl
+  djnz -_
+  ld de,$8005
+  ld hl,0706h
+  jr VputSCStepIn
+VPutSC:
+;Inputs:
+;    A is the char to draw
+  ld hl,(FontPointer)
+  ld c,a
+  ld b,0
+  add hl,bc
+  add hl,bc
+  adc hl,bc ;*3
+  jp p,+_
+  ld a,h
+  add a,-$40
+  ld h,a
+_:
+  ld a,(font_ptr_page)
+  ld bc,3
+  adc a,b
+  ld de,$8005+6
+  call readarc
+  ld hl,$8005+6
+  ld de,$8005
+  ld b,3  ;3*2 Nibbles
+_:
+  ld a,(hl)
+  and $F0
+  ld (de),a
+  inc e
+  ld a,(hl)
+  rrca \ rrca
+  rrca \ rrca
+  and $F0
+  ld (de),a
+  inc e
+  inc hl
+  djnz -_
+  ld de,$8005
+  ld hl,0604h
+  jr VputSCStepIn
+VPutC:
+;Inputs:
+;    A is the char to draw
+  ld hl,(FontPointer)
+
+;The first byte is the height of the font
+  ld e,(hl)
+  inc hl
+  ld d,0
+
+#ifdef INDEX_VFONT
+  sub 32
+  jr c,+_
+  ld b,a
+  ld hl,(vfont_index)
+  sub 16
+  jr c,+_
+  ld b,a
+  ld hl,(vfont_index+2)
+  sub 16
+  jr c,+_
+  ld b,a
+  ld hl,(vfont_index+4)
+  sub 32
+  jr c,+_
+  ld b,a
+  ld hl,(vfont_index+6)
+_:
+  inc b
+  call lookupchar_vfont
+#else
+  ;E is the height, assume non-zero
+  ;HL points to the font data
+  ;B is the char
+  ld b,a
+  inc b
+  jr vputc_loc_loop_end
+vputc_loc_loop:
+  ld a,(hl)
+  inc hl
+  dec a
+  jp m,vputc_loc_loop_end
+_:
+  add hl,de
+  sub 8
+  jr nc,-_
+vputc_loc_loop_end:
+  djnz vputc_loc_loop
+#endif
+  ld d,e
+  ld e,(hl)
+  inc hl
+  ex de,hl
+VputSCStepIn:
+  bit InvertTextFlag,(iy+UserFlags)
+  jr z,VputSCStepIn_postinvert
+  ;need to invert the text data
+  ;DE points to the sprite
+  ;H is height
+  ;L is width
+  push hl
+
+  ld b,h
+  ;get the mask to invert with
+  ld a,l
+  ld hl,spritemask
+  add a,l
+  ld l,a
+  jr nc,+_
+  inc h
+_:
+  ld c,(hl)
+  ld hl,$8005
+_:
+  ld a,(de)
+  xor c
+  ld (hl),a
+  inc hl
+  inc de
+  djnz -_
+  ld de,$8005
+  pop hl
+VputSCStepIn_postinvert:
+  push hl
+  call upd_text_coord
+  pop hl
+  ld a,7
+  add a,l
+  and %11111000
+  ret z
+  rra
+  rra
+  rra
+  ld l,a
+  ld a,(OutputLogic)
+  jp sprite
+
+upd_text_coord:
+  ld bc,(TextRow)
+  ld a,b \ add a,l
+  cp 97
+  jr c,+_
+  ;We need to increment if font is variable-width or OS large font style
+  ;I unintentionally organized the fonts so that odd-numbered fonts need an inc
+  ld a,(textmode)
+  rra
+  ld a,c
+  adc a,h \ ld c,a
+  ld a,l \ ld b,0
+_:
+  ld l,a
+  ld a,c
+  cp 58
+  jr c,+_
+  xor a
+  ld c,a
+_:
+  ld h,l
+  ld l,a
+  ld (TextRow),hl
+  ret
+VPutC_OS_large:
+  sub 1
+  jr c,+_
+  ld b,a
+  ld a,$7F
+  call OS_font_sub
+  inc l
+  inc h
+  jp VputSCStepIn
+_:
+  ld hl,$0700
+  ret
+
+VPutC_OS_small:
+  or a
+  jr z,+_
+  ld b,a
+  ld a,3
+  call OS_font_sub
+  jp VputSCStepIn
+_:
+  ld hl,$0600
+  ret
+
+
+vput_space:
+  call chardim
+  ld h,c
+  ld l,b
+  push bc
+  call upd_text_coord
+  ;C is y
+  ld e,b  ;x
+  pop hl
+  ld d,h  ;width
+  ld b,l  ;height
+
+; If using text mode 0, need to multiply x by 4
+  ld a,(textmode)
+  or a
+  jr nz,+_
+  sla e
+  sla e
+_:
+
+  ld hl,rect_wbwf
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+OS_font_sub:
+  call os_char_ptr
+  ld de,lfont_record
+  ld bc,8
+  call readarc
+  ld hl,lFont_record
+  ld a,8
+  sub (hl)
+  ld c,a
+_:
+  ld hl,lFont_record+7
+  ld b,7
+  sla (hl)
+  dec hl
+  djnz $-3
+  dec c
+  jr nz,-_
+  ld e,(hl)
+  ex de,hl
+  inc de
+  ld h,6
+  ret
+
+os_char_ptr:
+  ld h,0
+  ld l,b
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  ld bc,(FontPointer)
+  add hl,bc
+  ret

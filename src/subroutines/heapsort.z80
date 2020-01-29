@@ -1,0 +1,121 @@
+heapsort:
+;BC is the number of elements
+;IX points to the compare/swap routine
+  ld a,b
+  or c
+  ret z
+  push bc
+  call heapify
+  pop bc
+
+_:
+  dec bc
+  push bc
+  call heap_popswap
+  pop bc
+  ld a,b
+  or c
+  jr nz,-_
+  ret
+
+heap_popswap:
+  ld hl,0
+  call heap_swap
+  ld h,b
+  ld l,c
+  xor a
+  ld b,a
+  ld c,a
+heap_propogate:
+;If (BC+1)*2 == number of elements, then need to do check_prop_special
+;If (BC+1)*2 > number of elements, then we are done
+  inc bc
+  sbc hl,bc
+  ret c
+  sbc hl,bc
+  ret c
+  add hl,bc
+  add hl,bc
+  dec bc
+  jr z,heap_check_prop_special
+  push hl
+  call heap_check_prop
+  pop hl
+  jr c,heap_propogate
+  ret
+
+heap_check_prop:
+;returns BC as the index of the largest child
+;returns c flag set if still need to propogate
+;First, compare BC's children
+  push bc
+  ld h,b
+  ld l,c
+  add hl,hl
+  inc hl
+  ld b,h
+  ld c,l
+  inc hl
+  call heap_cmp
+  ;nc means HL is the bigger child
+  jr c,$+4
+  ld b,h
+  ld c,l
+  pop hl
+  push bc   ;the child node that was bigger
+  call heap_cmp
+  ;nc means the parent is bigger than the children, good
+  call c,heap_swap
+  pop bc
+  ret
+
+heap_check_prop_special:
+;There are an even number of elements, so this parent has only one child.
+;We'll do a special-case heap_check_prop
+  ld h,b
+  ld l,c
+  add hl,hl
+  inc hl
+  call heap_cmp
+  ;nc means the parent is bigger than the children, good
+  jr c,heap_swap
+  ret
+
+
+heap_swap:
+  push bc
+  push af
+  scf
+  call call_ix_01
+  pop af
+  pop bc
+  ret
+
+heap_cmp:
+  push hl
+  push bc
+  or a
+  call call_ix_01
+  pop bc
+  pop hl
+  ret
+
+
+heapify:
+  ld h,b
+  ld l,c
+  srl b
+  rr c
+  jr heapify_start
+_:
+  push hl
+  push bc
+  call heap_propogate
+  pop bc
+  pop hl
+heapify_start:
+  ld a,b
+  or c
+  dec bc
+  jr nz,-_
+  ret

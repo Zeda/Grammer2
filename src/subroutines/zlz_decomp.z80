@@ -1,0 +1,102 @@
+inloc   = tempword1
+incnt   = tempword2
+
+zlz_decomp:
+;Input:
+;   HL points to the zlz compressed data
+;   DE points to the output stream
+;   BC is the size of the data
+;Notes:
+;   While the format that this accepts uses arbitrary numbers of bits for
+;   sizes and offsets, this Z80 algorithm only works on 13-bit or 14-bit
+;   values (context dependent)
+;
+    ld a,(hl)
+    inc hl
+    add a,a
+    ld (incnt),bc
+    jr c,cpindex
+;from here, read the size in, then copy the data
+    add a,a
+    ld b,0
+    ld c,a
+    jr nc,+_
+    ld a,(hl)
+    inc hl
+    add a,a
+    ret c
+    rrca
+    ld b,a
+    call deccnt
+_:
+    srl b
+    rr c
+    srl b
+    rr c
+    push hl
+    ld hl,(incnt)
+    sbc hl,bc
+    ld (incnt),hl
+    pop hl
+    ldir
+    dec hl
+    ld bc,(incnt)
+    cpi
+    jp pe,zlz_decomp
+    ret
+cpindex:
+    add a,a
+    ld b,0
+    ld c,a
+    jr nc,+_
+    ld a,(hl)
+    inc hl
+    add a,a
+    ret c
+    rrca
+    ld b,a
+    call deccnt
+_:
+    srl b
+    rr c
+    srl b
+    rr c
+    ;BC is the new size
+    ;Now we need to grab the index
+    push bc
+    ld a,(hl)
+    add a,a
+    ld b,0
+    ld c,a
+    jr nc,+_
+    inc hl
+    ld a,(hl)
+    add a,a
+    jp c,pop_exit
+    rrca
+    ld b,a
+    call deccnt
+_:
+    srl b
+    rr c
+    ld (inloc),hl
+    ld h,d
+    ld l,e
+    or a
+    sbc hl,bc
+    pop bc
+    ldir
+    ld hl,(inloc)
+    ld bc,(incnt)
+    dec bc
+    cpi
+    jp pe,zlz_decomp
+    ret
+deccnt:
+    push hl
+    ld hl,(incnt)
+    dec hl
+    ld (incnt),hl
+pop_exit:
+    pop hl
+    ret

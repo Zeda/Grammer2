@@ -1,0 +1,167 @@
+getKeyTok:
+;converts a key press to a token
+;Takes key value in A
+;returns DE as token, c flag set if not a valid key else nc.
+
+;Check mod tokens
+;Check [2nd]
+    cp 54 \ jr nz,+_
+    ;If previous state was [2nd], set normal, else set [2nd]
+    ld a,(keyflags+flags)
+    res shift,(iy+keyflags)
+    res alpha,(iy+keyflags)
+    and 3
+    dec a
+    scf
+    ret z
+    set shift,(iy+keyflags)
+    ret
+_:
+
+;Check [Alpha]
+    cp 48 \ jp z,mod_alpha
+
+;Any other keys bigger should return c
+    ccf
+    ret c
+
+;Check for no key pressed, or arrows
+    sub 9
+    ret c
+
+;If [ALPHA] or [alpha] mode, check those LUTs
+    bit alpha,(iy+keyflags)
+    jr nz,chkalphakey_tok
+
+;Else we have normal or [shift] mode
+;Check if shift or normal, reset either way
+    bit shift,(iy+keyflags)
+    res shift,(iy+keyflags)
+
+;get the LUT pointer for the mode
+    ld hl,shiftkeytokLUT
+    jr nz,+_
+    ld hl,regkeytokLUT
+_:
+
+;Now get the offset into the LUT
+    add a,a
+    add a,l
+    ld l,a
+    jr nc,+_
+    inc h
+_:
+
+;Load the value into DE
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+
+;Return c if output is null
+    ld a,d
+    or e
+    sub 1
+    ret
+
+chkalphakey_tok:
+;either uppercase or lowercase
+    call toAlpha_tok
+    ld e,a
+    ld d,0
+    ret c
+;Get [ALPHA] or [alpha] mode
+    bit shift,(iy+keyflags)
+
+;Do mod_reset. If [ALPHA], no need to modify further so exit
+    jp z,mod_reset
+    call mod_reset
+
+
+    cp 'Z'+1
+    ret nc
+    cp 2Ah \ jr nz,+_ \ ld e,$AE \ ret    ;Quote --> apostrophe
+_:
+    cp $AF \ jr nz,+_ \ ld e,$2D \ ret    ;? --> !
+_:
+    cp $3E \ jr nz,+_ \ ld de,$BBD6 \ ret    ;: --> ;
+_:
+    cp $29 \ jr nz,+_ \ ld de,$BBD9 \ ret    ;space --> underscore
+_:
+    cp 'A'
+    ccf
+    ret nc
+    ld d,$BB
+    cp 'L'
+    ccf
+    adc a,$B0-'A'
+    ld e,a
+    ret
+toAlpha_tok:
+  or a
+  jr nz,+_
+  ld a,$3F  ;newline
+  ret
+_:
+  cp 1
+  jr nz,+_
+  ld a,2Ah    ;Quote
+  ret
+_:
+;38 -> 0   30->1   22->2
+;37 -> 5   29->6   21->7
+;36 -> 10
+;35 -> 15
+;34 -> 20
+;33 -> 25
+;32 -> 30
+;y=5*((-x-1)&7)-(x>>3) - 1
+; =5*((~x)&7)-(x>>3) - 1
+  ld c,a
+  cpl
+  and 7
+  ld b,a
+  add a,a
+  add a,a
+  add a,b
+  srl c
+  srl c
+  srl c
+  sub c
+  dec a
+  cp 3
+  jr c,+_
+  sub 2
+_:
+    cp 27
+    jr nc,+_
+    add a,'A'
+    ret
+_:
+    sub 29
+    jr nz,+_
+    ld a,29h    ;space token
+    ret
+_:
+    dec a
+    jr nz,+_
+    ld a,$3E    ;Colon token
+    ret
+_:
+    ld a,$AF
+    ret
+
+regKeyTokLUT:
+;.dw 0,0,0,0,0,0,0,0               ;down,left,right,up
+.dw $3F,$70,$71,$82,$83,$F0,0,0   ;Enter,+-*/^
+.dw $B0,$33,$36,$39,$11,$C6,0,0   ;neg369)
+.dw $3A,$32,$35,$38,$10,$C4,0,0   ;.258(
+.dw $30,$31,$34,$37,$2B,$C2,0,0   ;0147,
+.dw $00,$04,$BE,$C0,$0D,$0C,0,0   ;sto
+
+shiftKeyTokLUT:
+;.dw 0,0,0,0,0,0,0,0                    ;down,left,right,up
+.dw $00,$00,$07,$06,$BB31,$AC,0,0       ;Enter,+-*/^
+.dw $72,$5D02,$5D05,$5E82,$09,$C7,0,0   ;neg369)
+.dw $2C,$5D01,$5D04,$5E81,$08,$C5,0,0   ;.258(
+.dw $00,$5D00,$5D03,$5E80,$3B,$C3,0,0   ;0147,
+.dw $00,$00,$BF,$C1,$BC,$00,0,0         ;sto

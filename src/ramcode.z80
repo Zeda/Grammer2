@@ -1,0 +1,98 @@
+RAMCodeStart:
+
+_:
+IncHLMem1 = -_-RAMCodeStart+ramCode
+  inc h
+  ret po
+  ld h,a
+  in a,(6)
+  inc a
+  out (6),a
+  ld a,h
+  ld h,40h
+  ret
+
+_:
+next_page_call = -_-RAMCodeStart+ramCode
+;121cc
+  push af
+  in a,(6)
+  dec a
+  out (6),a
+  pop af
+next_page_call_address = $-RAMCodeStart+ramCode+1
+  call 0
+  push af
+  in a,(6)
+  inc a
+  out (6),a
+  pop af
+  ret
+_:
+prev_page_call = -_-RAMCodeStart+ramCode
+;121cc
+  push af
+  in a,(6)
+  inc a
+  out (6),a
+  pop af
+prev_page_call_address = $-RAMCodeStart+ramCode+1
+  call 0
+  push af
+  in a,(6)
+  dec a
+  out (6),a
+  pop af
+  ret
+_:
+bincompare = -_-RAMCodeStart+ramCode
+  ld de,(parsePtr)
+  out (6),a
+  .db $FE   ;start of cp *
+_:
+  inc de
+  ld a,(de)
+  cp (hl)
+  jr nz,+_
+  call isEOT
+  jr z,+_
+  inc l \ call z,incHLMem1
+  ld a,(hl)
+  or a
+  jr nz,-_
+_:
+  in a,(6)
+  ld b,a
+;  push af
+_:
+bincomparepagerestore = -_-RAMCodeStart+ramCode+1
+  ld a,0
+  out (6),a
+;  pop af
+  ld a,b
+  ret
+
+isEOT    = $-RAMCodeStart+ramCode
+;End Of Token includes (, ' ', {, [, \n, :
+  or a \ ret z
+  cp $10 \ ret z  ;(
+  cp $29 \ ret  ;space
+
+#ifdef include_interrupt
+.fill $8181-$+RAMCodeStart-ramCode,0
+interrupt_main = $-RAMCodeStart+ramCode
+  push af
+  in a,(6)
+  ld (interrupt_return_page),a
+interrupt_page = $-RAMCodeStart+ramCode+1
+  ld a,0
+  out (6),a
+  call Interrupt
+interrupt_return_page = $-RAMCodeStart+ramCode+1
+  ld a,0
+  out (6),a
+  pop af
+  ret
+#endif
+
+RamCodeEnd:

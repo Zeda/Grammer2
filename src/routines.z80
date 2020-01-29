@@ -1,0 +1,147 @@
+;mov104:
+;  call mov52
+;mov52:
+;  call mov26
+;mov26:
+;  call mov13
+mov15: ;250cc
+  ldi
+mov14: ;234cc
+  ldi
+mov13: ;218cc
+  ldi
+mov12: ;202cc
+  ldi
+mov11:
+  ldi
+  ldi
+mov9: ;154cc
+  ldi
+mov8: ;138cc
+  ldi
+  ldi
+  ldi
+  ldi
+mov4_page0: ;74cc
+  ldi
+mov3: ;58cc
+  ldi
+  ldi
+  ldi
+  ret
+NextVAT:
+;VATptr is the ptr
+;returns z flag if no more entries
+
+  call NextVat_
+  jp VATPtrToOP1_
+NextVat_:
+  ld hl,(VATptr)
+  ld bc,-6
+  add hl,bc
+  sbc a,a   ;HL>6, so carry flag is set
+  sub (hl)
+  ld c,a
+  add hl,bc
+
+  ld a,(pTemp)
+  cp l
+  jr nz,+_
+  ld a,(pTemp+1)
+  cp h
+  jr nz,+_
+  ld hl,(VATptr)
+_:
+  ;need to verify ptr
+  ld (VATptr),hl
+  ret
+PrevVAT_valid:
+;We need to start from the bottom and search until the previous one
+  call PrevVAT_
+VATPtrToOP1_:
+  jr nz,VATPtrToOP1
+  ld hl,0
+  ld (OP1),hl
+  scf
+  ret
+VATPtrToOP1:
+  ld bc,-6
+  ld a,(hl)
+  add hl,bc
+  ld de,OP1
+  ld (de),a
+  ld b,(hl)
+_:
+  dec hl
+  inc de
+  ld a,(hl)
+  ld (de),a
+  djnz -_
+  inc de
+  xor a
+  ld (de),a
+  ret
+
+PrevVAT_:
+  ld hl,(progPtr)
+  ld de,(VATptr)
+PrevVAT_valid_with_start:
+;returns z flag is no variable is found.
+;First, set the last valid to 0
+  xor a
+  ld (TempWord2),a
+  ld (TempWord2+1),a
+  call +_
+  ld hl,(TempWord2)
+  ld a,h
+  or l
+  ld (VATPtr),hl
+  ret
+_:
+;Make sure there are previous entries
+  sbc hl,de
+  ret z
+  add hl,de
+;Check if the first entry is valid
+  push de
+  push hl
+  ld (VATPtr),hl
+  call VATPtrToOP1
+  call isStartMenu_valid
+  pop hl
+  pop de
+  jr nz,$+5
+_:
+  ld (TempWord2),hl
+  push de
+  call NextVAT_valid
+  ld hl,(VATPtr)
+  pop de
+  or a
+  sbc hl,de
+  add hl,de
+  ret z
+  jr nc,-_
+  ret
+prng16:
+;collaboration by Zeda with Runer112
+;160cc
+;26 bytes
+;cycle: 4,294,901,760 (almost 4.3 billion)
+  ld hl,(seed1)
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,hl
+  inc l
+  add hl,bc
+  ld (seed1),hl
+  ld hl,(seed2)
+  add hl,hl
+  sbc a,a
+  and %00101101
+  xor l
+  ld l,a
+  ld (seed2),hl
+  add hl,bc
+  ret

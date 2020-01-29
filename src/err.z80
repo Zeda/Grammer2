@@ -1,0 +1,115 @@
+#ifdef SHELL_BROKEN
+GramErr:
+  ld de,StrGram
+  jp CustomError
+#endif
+MOSIONErr:
+  inc hl \ ld a,(hl) \ cp $30 \ jr nz,MirageErr
+  ld de,StrION
+  jp CustomError
+MirageErr:
+  dec a \ jp nz,HomeRunASM
+  ld de,StrMirage
+  jp CustomError
+DCSErr:
+  rlca
+  cp (hl) \ jp nz,HomeRunASM
+  inc hl \ ld a,(hl) \ cp $C9 \ jp nz,HomeRunASM
+  ld de,StrDCS
+  jp CustomError
+
+
+ErrStackOverflow_pop:
+  ld hl,s_StackOverflow_pop
+  ld a,6
+  jr custerrd
+ErrStackOverflow_push:
+  ld hl,s_StackOverflow_push
+  ld a,5
+  jr custerrd
+ErrPkgNotFound:
+  ld hl,s_PkgNotFound
+  ld a,4
+custerrd:
+  ld de,appErr1
+  call mov13
+  jr err
+ErrBadToken:
+  ld a,3
+  jr Err
+onbreak:
+  in a,(4)
+  and 8
+  ret nz
+ONErr:
+  xor a
+  .db $C2 ;start of jp nz,**
+ErrMEM:
+err_fatal:
+  ld a,1
+Err:
+  ld (cxErrorEP),a
+  jp ErrorJump
+GramHandl:
+  ld hl,(ErrorLoc)
+  ld (parsePtr),hl
+  cp errmap_end-errmap \ jr nc,BreakProgram
+  ld hl,errmap
+  add a,l
+  ld l,a
+#if (errmap&255)>251
+  jr nc,+_
+  inc h
+_:
+#endif
+  ld a,(hl)
+  .db $FE  ;start of cp *s
+StopToken:
+BreakProgram:
+  xor a
+  push af
+;Reset the keypress
+_:
+  call GetKeyDebounce
+  or a
+  jr nz,-_
+;Reset the link port
+  out (0),a
+;Reset the OS keypress
+  ld (843Fh),a
+  ld (8444h),a
+;Reset textShadow and cmdShadow
+	bcall(_clrTxtShd)
+  bcall(_saveCmdShadow)
+
+  pop af
+  ld hl,(parsePtr)
+  dec hl
+  ld (parsePtr),hl
+  ld sp,(SPSave)
+  di
+  im 1
+  or a
+  jr z,+_
+  ld b,a
+  ld a,(basic_prog)
+  cp 5
+  ld a,b
+  jr nz,$+4
+  or 128
+  bcall(_JError)
+_:
+  or 1
+  ret
+errmap:
+  .db 6,14,43,36,43,43,43
+errmap_end:
+
+
+
+;The following are errors thrown outside of parsing.
+;Ex., during compiling, or loading a source file from archive
+
+err_LowMem:
+;Need to actually show to the user
+  ret

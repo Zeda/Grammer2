@@ -1,0 +1,42 @@
+; Grammer's Interrupt Service Routine (ISR)
+Interrupt:
+  push af
+  push bc
+  push de
+  push hl
+  in a, (4)
+  cpl
+  out (3),a
+  cpl
+  out (3),a
+
+  rra     ;bit 0
+  call c,interruptON
+  rra     ;bit 1
+  call c,interruptTimer1
+  rra     ;bit 2
+  call c,interruptTimer2
+  rra     ;bit 3
+  rra     ;bit 4
+;    call c,interruptLink
+  call getKey_interrupt
+
+;  bit inthook,(iy+34)
+;  call z,gHook
+  pop hl
+  pop de
+  pop bc
+  pop af
+  ei
+  ret
+;gHook:
+;runs the Grammer code set to interrupt
+;  ret
+interruptON:
+  ret
+interruptTimer1:
+  ret
+interruptTimer2:
+  ret
+getKey_interrupt:
+  ret

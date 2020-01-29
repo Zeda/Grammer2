@@ -1,0 +1,17 @@
+LoadTSA:
+  di
+  push af
+  push bc
+  push de
+  push ix
+  ex (sp),hl
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ inc hl
+  ld de,TSA
+  ;should I do a fastLDIR ?
+  ldir
+  pop hl
+  pop de
+  pop bc
+  pop af
+  ret

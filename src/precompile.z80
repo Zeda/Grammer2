@@ -1,0 +1,149 @@
+;Put the name in OP1
+  ld hl,GramTempName
+  rst rMov9ToOP1
+
+;Now we create the var
+  ld a,16h
+  ld hl,(TempWord4)
+  bcall(_CreateVar)
+  inc de
+  inc de
+
+;Copy the source to RAM
+;If size is 0, just exit.
+  ld bc,(TempWord4)
+  ld a,b
+  or c
+  jr nz,+_
+  pop hl
+  ret
+_:
+
+  ld hl,(TempWord5)
+  ld a,(TempWord3)
+  call nz,ReadArc
+
+;Now we copy the temp var's name back to OP1 and call it good :)
+  ld hl,OP4
+  rst rMov9ToOP1
+
+
+; ;Here is our pre-compiling code
+; ;If the size is 0, exit
+;   ld hl,(TempWord4)
+;   ld a,h \ or l
+;   ret z
+;
+; ;Put the name in OP1
+;   ld hl,GramTempName
+;   rst rMov9ToOP1
+;
+; ;How much RAM do we have that we can allocate?
+;  bcall(_MemChk)
+;
+; ;Take off some bytes to make room for the VAT entry and size bytes
+;  ld bc,-20     ;at some point I have to actually calculate this. It might be -19.
+;  add hl,bc
+;  jp nc,err_LowMem   ;Not even enough room for a new VAT pointer !
+;
+; ;Now we create the var, occupying all of RAM
+;   ld a,16h
+;   ld (size_of_buffer),hl
+;   bcall(_CreateVar)
+;
+; ;Keep the pointer to the start of the buffer safe
+;   inc de \ inc de
+;   ld (start_of_prog),de
+;
+; ;Copy the source code to the buffer
+;   ld a,(TempWord3)
+;   ld bc,(TempWord4)
+;   ld hl,(TempWord5)
+;   call ReadArc
+;
+; ;Now we set up for parsing
+;   ld (end_of_src),de
+; ;  ld hl,(start_of_prog)
+; ;  ld (in_head),hl
+; ;  ld (out_head),hl
+; ;  ex de,hl
+;   ld de,(start_of_prog)
+;   ld hl,(size_of_buffer)
+;   add hl,de
+;   ld (buffer_top),hl
+;   ld (data_top),hl
+;   ld h,d
+;   ld l,e
+; ;HL points to the head of the input
+; ;DE points to the head of the output
+;
+;
+; ;  ld de,(end_of_src)
+; ;  jp compile_dealloc
+;
+; _:
+;   ld a,(hl)
+;   call compile
+;
+; ;Make sure that HL<end_of_src
+;   ld a,(end_of_src)
+;   sub l
+;   ld a,(end_of_src+1)
+;   sbc a,h
+;   jr nc,-_
+;
+; ;Now we need to merge the output and data sections
+; ;DE points to the top of the output
+;   ld hl,(buffer_top)
+;   ld bc,(data_top)
+;   or a
+;   sbc hl,bc
+;   jr z,+_
+; ;Need to copy HL bytes at BC to DE.
+; ;Swap HL and BC to use LDIR
+;   ld a,h
+;   ld h,b
+;   ld b,a
+;   ld a,l
+;   ld l,c
+;   ld c,a
+;   ldir
+; _:
+;
+; compile_dealloc:
+; ;Now we need to deallocate unused RAM
+; ;DE points to the end of the parsed code
+;  ld hl,(start_of_prog)
+;  ex de,hl
+;  or a
+;  sbc hl,de
+;  ex de,hl
+; ;DE is the actual size, HL points to the start of data
+;
+; ;Replace the size bytes
+;  dec hl
+;  ld b,(hl)
+;  ld (hl),d
+;  dec hl
+;  ld c,(hl)
+;  ld (hl),e
+;
+; ;Now we need to get rid of BC-DE bytes at HL+DE+2
+;  add hl,de
+;  inc hl
+;  inc hl
+;
+; ;Now we need to get rid of BC-DE bytes at HL
+;  ld a,c
+;  sub e
+;  ld e,a
+;  ld a,b
+;  sbc a,d
+;  ld d,a
+;
+; ;Now we need to get rid of DE bytes at HL
+;   bcall(_DelMem)
+;
+; ;Now we copy the temp var's name back to OP1 and call it good :)
+;   ld hl,OP4
+;   rst rMov9ToOP1

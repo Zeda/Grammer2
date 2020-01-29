@@ -1,0 +1,177 @@
+GrammerHook:
+  .db 83h
+  or a
+  jr nz,exithook3
+  di
+  push hl
+  push de
+  push bc
+  push af
+  ld de,(progstart)
+  ld a,(de)
+  cp $5F      ;make sure it is the prgm Token. I just realized that in older versions, you could have any 1-byte token instead of the prgm token!
+  jr z,+_
+exithook1:
+  pop af
+  pop bc
+  pop de
+  pop hl
+exithook3:
+  cp a
+  ret
+_:
+  ld hl,(progend)
+  sbc hl,de
+  inc de
+  ld b,h
+  ld c,l
+  ld a,h
+  or a
+  jr z,+_
+  ld bc,8
+_:
+  ld a,c
+  or a
+  jr z,exithook1
+  cp 9
+  jr c,+_
+  ld c,8
+_:
+  ex de,hl
+  ld de,OP1
+  ld a,5
+  ld (de),a
+  inc de
+  ldir
+  xor a
+  ld (de),a
+  call SetUpData
+  call IsOP1GrammerProg
+  jr nz,+_
+;  ld hl,OP1
+;  ld de,OP5
+;  call mov9
+  bcall(_OP1ToOP5)
+  pop af
+  pop bc
+  pop de
+  pop hl
+  call SelectedProg
+  or 1
+  ret
+_:
+  ld hl,cmdShadow+2             ;location of header
+; ION =BB6DC918
+; MOS =BB6DC901
+; DCS7=BB6DAAC9
+; Gram=BB6D55C9
+  ld a,(hl) \ cp $BB \ jp nz,HookEnd
+  inc hl \ ld a,(hl) \ cp $6D \ jp nz,HookEnd
+  inc hl \ ld a,(hl) \ cp $C9 \ jp z,MOSIONErr
+  ld c,a
+  inc hl \ ld a,(hl) \ cp $C9 \ jp nz,HookEnd
+  ld a,c \ cp $AA \ jp z,DCSErr
+#ifdef SHELL_BROKEN
+  jp GramErr
+#endif
+HomeRunASM:
+
+  ld hl,(TempWord5) \ ld bc,(TempWord4)
+  jr nz,+_
+  inc hl \ inc hl \ dec bc \ dec bc
+_:
+  inc hl \ inc hl \ dec bc \ dec bc
+  ld de,9D94h
+  or a \ sbc hl,de
+  add hl,de
+  ld de,OP1
+  jr nz,+_
+  pop hl \ pop hl \ pop hl \ pop hl
+  xor a
+  ret
+_:
+  ldir
+  xor a
+  ld (de),a
+  ld a,5
+  ld (OP1),a
+  call SetUpData+3
+  call IsOP1GrammerProg
+  jr nz,EndHook
+
+;  ld hl,OP1
+;  ld de,OP5
+;  call mov9
+  bcall(_OP1ToOP5)
+  pop af
+  pop bc
+  pop de
+  pop hl
+  call SelectedProg
+  or 1
+  ret
+EndHook_prepush:
+  push af
+  push af
+  push af
+  push af
+EndHook:
+  ld hl,cmdShadow+2             ;location of header
+; ION =BB6DC918
+; MOS =BB6DC901
+; DCS7=BB6DAAC9
+; Gram=BB6D55C9
+  ld a,(hl) \ cp $BB \ jr nz,HookEnd
+  inc hl \ ld a,(hl) \ cp $6D \ jr nz,HookEnd
+  inc hl \ ld a,(hl) \ cp $C9
+  jr z,HookEnd
+  ld a,55h
+  cp (hl)
+  jr nz,HookEnd
+  inc hl \ ld a,(hl) \ cp $C9
+  jr c,+_
+  add hl,bc
+_:
+  push hl \ push bc
+  ld h,b \ ld l,c
+  bcall(_EnoughMem)
+  jp c,ErrMEM
+  ex de,hl
+;HL # bytes
+;DE addr
+  ld de,9D95h ;start VarRAM
+  push de
+  bcall(_InsertMem)
+  pop de \ pop bc \ pop hl
+  ld a,(TempWord3)
+  push de \ push bc
+  call ReadArc
+  ld hl,0
+  add hl,sp
+  ld (SPSave),hl
+  call 9D95h ;start VarRAM
+  pop de \ pop hl
+;Delmem: HL address
+;        DE # of bytes
+  bcall(_DelMem)
+;===============================================================
+  .db $F6   ;start of `or *`. Since `xor a`=AF !=0, this will result in the z flag reset, always.
+HookEnd:
+  xor a
+  pop hl
+  ld a,h
+  pop bc
+  pop de
+  pop hl
+  ret
+
+
+CompatCall:
+  call setupRAMdata
+IsOP1GrammerProg:
+  ld (iy+UserFlags),8
+  bcall(_ChkFindSym)
+  ld (VATPtr),hl
+  jp nc,isStartMenu_valid
+  or 1
+  ret

@@ -1,0 +1,4499 @@
+;Grammer
+;================:
+;\\     /\       :
+; \\   //\\      :
+;  \\ //  \\     :
+;   \\/----\\    :
+;   //\----//\   :
+;  // \\  // \\  :
+; //   \\//   \\ :
+;//     \/     \\:
+;================:
+;Project.........Grammer
+;Program.........Grammer
+;Author..........Zeda Thomas (Xeda112358 / ThunderBolt)
+;E-mail..........xedaelnara@gmail.com
+;Size............
+;Language........English
+;Programming.....Assembly
+;Version.........v2.50          ;I rarely update this stuff
+;Last Update.....27 Nov 2019    ;This is not accurate, probably
+
+#define NO_JUMP_TABLE
+#include "grammer2.5.inc"
+#include "grammer.inc"
+
+#define Coord(y,x)     .db 01,y,x
+#define SHELL_BROKEN
+#define speed
+#define K_DELAY_DEFAULT 13
+#define K_DELAY_ACCEL 3
+#define ALIGN_COMMAND_TABLE      ;Comment this to potentially save some bytes, uncomment to save some clock cycles
+#define include_fire
+#define include_ncr
+;#define include_LoadTSA
+;#define include_interrupt
+#define INCLUDE_GRAMPKG
+#define INDEX_VFONT      ;Allows faster font access for key portions of the font
+
+.org $4000
+.db $80,$0F, 0,0,0,0
+.db $80,$12, $01,$04    ;signing key ID
+.db $80,$47, "Grammer" ;change the $47 according to name len.
+.db $80,$81, 2          ;num pages
+.db $80,$90             ;no splash
+.db $03,$22,$09,$00     ;date stamp
+.db $02,$00             ;date stamp signature
+.db $80,$70             ;final field
+
+     jp main
+jumptable:
+#include "jmptable.z80"
+SelectedProg:
+  bcall(_OP5ToOP1)
+;  ld de,OP1
+;  ld hl,OP5
+;  call mov9
+
+SelectedProgOP1:
+  ld hl,gbuf
+  ld (BufPtr),hl
+  bcall(_ChkFindSym)
+  ret c
+  ld hl,cmdShadow+2
+  ld a,$BB
+  cp (hl)
+  jr nz,+_
+  inc l
+  ld a,$6D
+  cp (hl)
+  jp z,EndHook_prepush
+_:
+  ld a,(TempWord3)
+  or a
+  jr z,ExecOP1
+;Here we need to move the code to RAM.
+;  We will perform some minor pre-compiling
+;  Currently it is just:
+;     Convert numbers to raw binary
+#include "precompile.z80"
+  jr ExecOP1
+ProgramAccessStart:
+  bcall(_RclAns)
+  sub 4
+  jr nz,grazh
+  ex de,hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  ld de,OP1
+  ldir
+  ld (de),a
+ExecOP1:
+  ld hl,OP1
+  ld de,basic_prog
+  call mov9
+  bcall(_ChkFindSym)
+  ld a,b
+  ret c
+  or a \ ret nz
+  ex de,hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+parse_via_ptr:
+;HL points to code
+;BC is the size
+  ld (parsePtr),hl
+  ld (progStart),hl
+  add hl,bc
+  ld (progEnd),hl
+  ld h,a \ ld l,a
+  ld (parseError),hl
+grazh:
+#ifdef include_interrupt
+  di
+  ld a,11
+  out (3),a
+  ld a,6
+  out (4),a   ;set slowest hardware timer mode
+  ld a,41h
+  ld i,a
+  im 2
+  ei
+#endif
+  call SetUpData
+;  call progmeta
+  ld hl,BreakProgram
+  push hl
+ParserNext:
+  ld de,ParserNext
+  push de
+ParseArg:
+  bit IntActiveFlag,(iy+InternalFlag)
+  call z,parser_interrupt
+  bit OnBlockFlag,(iy+UserFlags)
+  call z,onbreak
+  ld hl,(parsePtr)
+ParseArg2:
+  ld a,(hl)
+  inc hl
+  ld (parsePtr),hl
+#ifdef ALIGN_COMMAND_TABLE
+  ld h,CommandJumpTable>>8
+  add a,a
+  ld l,a
+  jr nc,+_
+  inc h
+_:
+  rra
+  ld e,(hl)
+  inc l
+#else
+  ld e,a
+  ld hl,CommandJumpTable
+  ld d,0
+  add hl,de
+  add hl,de
+  ld e,(hl)
+  inc hl
+#endif
+  ld d,(hl)
+  push de
+  ld hl,(parsePtr)
+  ret
+OutputToken:
+  ld a,(hl)
+  cp 11
+  jr nz,+_
+  call ParseNextFullArg
+  ld a,c
+  ld (OutputLogic),a
+  ret
+_:
+  call ParseFullArg
+  ld hl,textmode
+  ld (hl),c
+  ld e,a
+  ld a,c
+#ifdef INDEX_VFONT
+  push af
+#endif
+  ld bc,FontSet
+  or a
+  jr z,+_
+  ld bc,vFont
+  dec a
+  jr z,+_
+  ld bc,FontSet
+  dec a
+  jr z,+_
+  dec a
+  ld c,a
+  ;this part is based on E37's fasttext routine
+  push de
+  ld a,(iy+hookflags3)               ;Need to disable font hooks flag while we
+  push af                            ;try to locate the font data, or we might
+  res fontHookActive,(iy+hookflags3) ;get a pointer to the custom font table.
+  dec c
+  call z,sfont_ptr
+  call nz,lfont_ptr
+  pop af
+  ld (iy+hookflags3),a
+  ld b,d
+  ld c,e
+  pop de
+_:
+  ld a,e
+  cp 2Bh
+  call z,ParseNextFullArg
+  ld (FontPointer),bc
+  ld c,0
+  cp $2B
+  call z,ParseNextFullArg
+  ld a,c
+  ld (font_ptr_page),a
+
+#ifdef INDEX_VFONT
+  pop af
+  dec a
+  ret nz
+  ;need to find chars 32, 48, 64, and 96
+
+  ld hl,(FontPointer)
+;HL points to the font
+;The first byte is the height of the font
+  ld e,(hl)
+  ld d,0
+  inc hl
+
+  ld b,33
+  call lookupchar_vfont
+  ld (vfont_index),hl
+  ld b,17
+  call lookupchar_vfont
+  ld (vfont_index+2),hl
+  ld b,17
+  call lookupchar_vfont
+  ld (vfont_index+4),hl
+  ld b,33
+  call lookupchar_vfont
+  ld (vfont_index+6),hl
+  ld bc,(FontPointer)
+  ret
+
+
+
+vputc_loc_loop:
+  ld a,(hl)
+  inc hl
+  dec a
+  jp m,vputc_loc_loop_end
+_:
+  add hl,de
+  sub 8
+  jr nc,-_
+vputc_loc_loop_end:
+lookupchar_vfont:
+;DE is the height
+;HL points to the font data
+;B is the char+1
+  djnz vputc_loc_loop
+
+#endif
+  ret
+
+sfont_ptr:
+  bcall(_SFont_Len)
+  xor a
+  ret
+lfont_ptr:
+  ld hl,$6D81
+  call is_start_lfont
+  ret z
+
+  ld hl,$7184
+  call is_start_lfont
+  ret z
+  jp err_fatal
+
+
+is_start_lfont:
+  push hl
+  ld de,lFont_record
+  ld a,$7F    ;bootcode
+  ld bc,3
+  call readarc
+  pop de
+  ld hl,lFont_record
+  ld a,(hl)
+  sub 5
+  ret nz
+  inc hl
+  or (hl)
+  ret nz
+  inc hl
+  or (hl)
+  ret
+
+NewLine:
+  ld hl,(BufPtr)
+  ld (gbuf_temp),hl
+  ld (Ans),bc
+IncPtr:
+_Ret:
+  ret
+
+augment:
+  call ParseFullArg
+  ld h,b \ ld l,c
+  bcall(_EnoughMem)
+  jp c,ErrMem
+  push de
+  call ParseNextFullArg
+  push bc
+  ld hl,(parsePtr)
+  inc hl
+  ld (parsePtr),hl
+  call GetVarInfo
+  jp c,Pop2Exit
+  or a \ jp nz,Pop2Exit
+  ld hl,(parsePtr)
+  ld (parsePtr),hl
+  ex de,hl
+  ld c,(hl) \ inc hl
+  ld b,(hl)
+  ld (TempWord1),hl
+  pop de \ pop hl
+InsertData:
+  push hl
+  add hl,bc
+  ld b,h \ ld c,l
+  ld hl,(TempWord1)
+  ld (hl),b \ dec hl
+  ld (hl),c \ inc hl \ inc hl
+  add hl,de
+  pop de
+;hl points to where to insert data
+;de is the number of bytes to insert
+  push de \ push hl
+  ld a,h \ or l
+  jr z,+_
+  ex de,hl
+  bcall(_InsertMem)
+_:
+  ld hl,(parsePtr)
+  ld (parsePtr),hl
+  pop hl \ pop bc
+  ld d,h \ ld e,l
+ZeroMem:
+  ld a,b \ or c \ ld a,0
+  push de
+  call nz,SetMem
+  pop bc
+  ret
+
+_:
+  ld hl,tilemap_new
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+PtChange:
+  call ParseFullArg       ;To get the tilemap routine correct
+  ld a,c
+  or a
+  jr nz,-_
+  call ParseNextFullArg   ;Map Data
+  push bc
+  call ParseNextFullArg   ;Tile Data
+  push bc
+  call ParseNextFullArg   ;MapWidth
+  push bc
+  call ParseNextFullArg   ;MapX offset
+  ld (TempWord2),bc
+  call ParseNextFullArg   ;MapY offset
+  ld (TempWord3),bc
+  call ParseNextFullArg   ;Sprite Method
+  push bc
+
+
+  cp 2Bh
+  call z,ParseNextFullArg_Buffer
+  pop bc
+  ld a,c
+  pop hl
+  pop bc
+  pop de
+  jp TileMap1
+
+solveSet:
+  call ParseFullArg
+  ld a,c
+  sub 3
+  jr z,ErrorHandle
+  dec a
+  jr z,CallError
+  ld hl,solveSet_p1
+  ld (next_page_call_address),hl
+  jp next_page_call
+_:
+ErrorHandle:
+  call ParseNextFullArg
+  ld (ParseError),bc
+  ret
+CallError:
+  call ParseNextFullArg
+  ld a,c
+  cp 2
+  jr nz,HandleError
+  call ParseNextFullArg
+  ld h,b \ ld l,c
+  call GetGrammerText
+  ld hl,13
+  or a
+  sbc hl,bc
+  jr nc,+_
+CustomError:
+  ld bc,12
+_:
+  ex de,hl
+  ld de,appErr1
+  ldir
+  xor a
+  ld (de),a
+  ld a,2
+HandleError:
+  jp GramHandl
+
+DSToken:
+  ld a,(hl) \ inc hl
+  call VarP
+  ret nc
+  ld (parsePtr),de
+  ld e,(hl) \ inc hl \ ld d,(hl)
+  ld a,(de) \ ld c,a
+  dec de \ ld (hl),d \ dec hl \ ld (hl),e
+  ld b,0 \ ret
+
+ISToken:
+  ld a,(hl) \ inc hl
+  call VarP
+  ret nc
+  ld (parsePtr),de
+g_ReadByte:
+  ld e,(hl) \ inc (hl) \ inc hl \ ld d,(hl)
+  jr nz,+_
+  inc (hl)
+_:
+  ex de,hl
+  ld c,(hl)
+  ld b,0
+  dec de
+  ex de,hl
+  ret
+AnsToken:
+  ld bc,(Ans) \ ret
+seqToken:
+CopyHex:
+  ex de,hl
+  ld h,b \ ld l,c
+_:
+  call PutHexFromDE
+  jr z,+_
+  call PutHexFromDE
+  inc hl
+  jr nz,-_
+  dec hl
+  xor a
+  rld
+_:
+  ld (parsePtr),de
+  ld b,h \ ld c,l
+  ret
+PutHexFromDE:
+  inc de
+  ld a,(de)
+  cp 3Fh
+  ret z
+  cp 3Ah
+  jr c,+_
+  sub 7
+_:
+  rld
+  ret
+SetData:
+;[
+  ld a,(hl)
+  cp 16
+  jr z,CopyHex      ;[(
+  cp 6
+  jr z,+_           ;[[
+  dec hl
+  ld (parsePtr),hl
+  scf
+_:
+  sbc a,a
+  ld e,a
+  ld h,b \ ld l,c
+
+SetData_loop:
+  push hl
+  push de
+  call ParseNextFullArg
+  pop de
+  rlc e
+  jr nc,+_
+  dec hl
+  ld a,(hl)
+  cp 11
+  inc hl
+_:
+  ld a,(hl)
+  pop hl
+  ld (hl),c \ inc hl
+  jr nz,+_
+  ld (hl),b \ inc hl
+_:
+  cp 2Bh
+  jr z,SetData_loop
+  ld b,h
+  ld c,l
+  ret
+VarName:
+   ld e,a
+   ld d,(hl)
+   inc d
+   call GetNextVarNum
+   dec d
+   ld (parsePtr),hl
+   ld (OP1+1),de
+   xor a
+   ld (OP1+3),a
+   rst rFindSym
+   jp VarTokenStepIn
+FuncToken:
+  call ParseFullArg
+  ld (IntLoc),bc
+  ld bc,80h
+  cp 2Bh
+  call z,ParseNextFullArg
+  dec bc \ inc b \ inc c
+  ld (IntMax),bc
+  ld (IntCount),bc
+  ret
+SendToken:
+  ld a,(hl)
+  cp $AE
+  jr nz,NotSendByte
+;timer,byte
+;success or fail
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  pop de
+#include "subroutines/sendbyte.z80"
+NotSendByte:
+  call ParseFullArg
+  push bc               ;Size of the var
+  inc hl \ ld (parsePtr),hl
+  call GetVarName
+  ex de,hl
+  ld de,OP1
+  ldir
+  xor a
+  ld (de),a
+  bcall(_ChkFindSym)
+  pop hl
+  jr nc,+_
+  ld a,(OP1)
+  and 1fh
+  bcall(_EnoughMem)
+  jp c,ErrMEM
+  ex de,hl
+  bcall(_CreateVar)
+  ex de,hl
+  ld a,b
+  or c
+  inc hl
+  inc hl
+  push hl
+  call nz,ZeroMem
+  pop bc
+  ret
+_:
+  inc de \ inc de
+  ld c,e \ ld b,d
+  ret
+FixToken:
+  ld a,(hl)
+  cp 93h
+  jr nz,SetMode
+  call ParseNextFullArg
+  ld a,c
+  ld (TextPauseTime),a
+  ret
+SetMode:
+  ld a,(flags+UserFlags)
+  ld b,0      ; not needed, per se, but nice for output
+  ld c,a
+  call ParseFullArg
+  ld a,c
+  ld (flags+UserFlags),a
+  ret
+
+FloatModeToggle:
+;Toggles float mode.
+;In float mode, operations default to float operations.
+  ld a,(flags+ModeFlags2)
+  xor 1<<floatmode
+  ld (flags+ModeFlags2),a
+  ret
+
+OSVarToken:
+  ld a,(hl)
+  inc hl
+  ld (parsePtr),hl
+  ld hl,0
+  ld (OP1+2),hl
+  ld (OP1+1),a
+  rst rFindSym
+  jr c,return_BC_0
+  ex de,hl
+  call convFloat
+  ld b,d \ ld c,e
+  ret
+return_BC_0:
+  ld bc,0
+  ret
+TangentToken:
+  call ParseFullArg
+  xor a \ ld b,a
+  or c
+  ret z
+  push bc
+  call ParseNextFullArg
+  ld a,c
+  pop bc
+  or a \ ret z
+  push af
+  push bc
+  ld a,(hl)
+  cp 2Bh
+  ld bc,(BufPtr)
+  call z,ParseNextFullArg
+  ld (TempWord1),bc
+  pop bc
+  pop af
+ShiftGraphBuf:
+  ld b,4
+  push bc
+  rrca
+  push af
+  ld a,c
+  call c,ShiftGraphDownA
+  pop af
+  pop bc
+  push bc
+  rrca
+  push af
+  ld a,c
+  call c,ShiftGraphLeftA
+  pop af
+  pop bc
+  push bc
+  rrca
+  push af
+  ld a,c
+  call c,ShiftGraphRightA
+  pop af
+  pop bc
+  rrca
+  ld a,c
+  ret nc
+ShiftGraphUpA:
+  ld e,a
+  ld l,a
+  ld h,0
+  ld d,h
+  add hl,hl
+  add hl,de
+  add hl,hl
+  add hl,hl
+  push hl
+  ld a,h
+  inc a
+  cpl
+  and 3
+  ld b,a
+  ld a,l
+  dec a
+  cpl
+  ld c,a
+  ld de,(TempWord1)
+  add hl,de
+  ldir
+  pop bc
+ZeroMemF:
+  xor a
+SetMemF:
+  ld (de),a
+  ld h,d \ ld l,e
+  inc de
+ReadRAM:
+  ldir
+  ret
+ShiftGraphRightA:
+  rrca
+  push af
+  call c,ShiftRight1
+  pop af
+  rrca
+  push af
+  call c,ShiftRight2
+  pop af
+  rrca
+  push af
+  call c,ShiftRight4
+  pop af
+  rrca
+  push af
+  call c,ShiftRight8
+  pop af
+  rrca
+  push af
+  call c,ShiftRight16
+  pop af
+  rrca
+  push af
+  call c,ShiftRight32
+  pop af
+  rrca
+  ret nc
+ShiftRight64:
+  ld hl,(TempWord1)
+  ld a,l
+  sub 9
+  jr nc,+_
+  dec h
+_:
+  ld l,a
+  ld a,4
+  jr ShiftRight8OrMore
+ShiftRight32:
+  ld hl,(TempWord1)
+  ld a,l
+  sub 5
+  jr nc,+_
+  dec h
+_:
+  ld l,a
+  ld a,8
+  jr ShiftRight8OrMore
+ShiftRight16:
+  ld hl,(TempWord1)
+  dec hl \ dec hl \ dec hl
+  ld a,10
+ShiftRight8OrMore:
+  inc h
+  inc h
+  inc h
+  ld b,0
+  ld c,a
+  ld (TempWord3),bc
+  sub 13
+  cpl
+  ld (TempWord2+1),a
+  ld b,64
+  ld de,(TempWord1)
+  inc d \ inc d \ inc d
+  dec de
+SR8OMLoop:
+;TempWord2==number of bytes to clear
+;TempWord3==number of bytes to shift
+;b=64
+  push bc
+  ld bc,(TempWord3)
+  lddr
+  ld bc,(TempWord2)
+  xor a
+_:
+  ld (de),a
+  dec de
+  dec hl
+  djnz -_
+  pop bc
+  djnz SR8OMLoop
+  ret
+ShiftRight8:
+  ld hl,(TempWord1)
+  ld d,64
+ShiftRight8_loop:
+  xor a
+  ld b,12
+_:
+  ld c,(hl)
+  ld (hl),a
+  inc hl
+  ld a,c
+  djnz -_
+  dec d
+  jr nz,ShiftRight8_loop
+  ret
+ShiftRight2:
+  call ShiftRight1
+ShiftRight1:
+  ld hl,(TempWord1)
+  ld c,64
+ShiftRight1_loop:
+  xor a
+  ld b,12
+_:
+  rr (hl)
+  inc hl
+  djnz -_
+  dec c
+  jr nz,ShiftRight1_loop
+  ret
+ShiftRight4:
+  ld hl,(TempWord1)
+  ld c,64
+ShiftRight4_loop:
+  xor a
+  ld b,12
+_:
+  rrd
+  inc hl
+  djnz -_
+  dec c
+  jr nz,ShiftRight4_loop
+  ret
+ShiftGraphLeftA:
+  rrca
+  push af
+  call c,ShiftLeft1
+  pop af
+  rrca
+  push af
+  call c,ShiftLeft2
+  pop af
+  rrca
+  push af
+  call c,ShiftLeft4
+  pop af
+  rrca
+  push af
+  call c,ShiftLeft8
+  pop af
+  rrca
+  push af
+  call c,ShiftLeft16
+  pop af
+  rrca
+  push af
+  call c,ShiftLeft32
+  pop af
+  rrca
+  ret nc
+ShiftLeft64:
+  ld hl,(TempWord1)
+  ld a,8
+  add a,l
+  jr c,+_
+  inc hl
+_:
+  ld l,a
+  ld a,4
+  jr ShiftLeft8OrMore
+ShiftLeft32:
+  ld hl,(TempWord1)
+  inc hl \ inc hl
+  inc hl \ inc hl
+  ld a,8
+  jr ShiftLeft8OrMore
+ShiftLeft16:
+  ld hl,(TempWord1)
+  inc hl \ inc hl
+  ld a,10
+ShiftLeft8OrMore:
+  ld b,0
+  ld c,a
+  ld (TempWord3),bc
+  sub 13
+  cpl
+  ld (TempWord2+1),a
+  ld b,64
+  ld de,(TempWord1)
+SL8OMLoop:
+  push bc
+  ld bc,(TempWord3)
+  ldir
+  ld bc,(TempWord2)
+  xor a
+_:
+  ld (de),a
+  inc de
+  inc hl
+  djnz -_
+  pop bc
+  djnz SL8OMLoop
+  ret
+ShiftLeft8:
+  ld hl,(TempWord1)
+  inc h \ inc h \ inc h
+  dec hl
+  ld d,64
+ShiftLeft8_loop:
+  xor a
+  ld b,12
+_:
+  ld c,(hl)
+  ld (hl),a
+  dec hl
+  ld a,c
+  djnz -_
+  dec d
+  jr nz,ShiftLeft8_loop
+  ret
+ShiftLeft2:
+  call ShiftLeft1
+ShiftLeft1:
+  ld hl,(TempWord1)
+  inc h
+  inc h
+  inc h
+  dec hl
+  ld c,64
+ShiftLeft1_loop:
+  xor a
+  ld b,12
+_:
+  rl (hl)
+  dec hl
+  djnz -_
+  dec c
+  jr nz,ShiftLeft1_loop
+  ret
+ShiftLeft4:
+  ld hl,(TempWord1)
+  inc h \ inc h \ inc h
+  dec hl
+  ld c,64
+ShiftLeft4_loop:
+  xor a
+  ld b,12
+_:
+  rld
+  dec hl
+  djnz -_
+  dec c
+  jr nz,ShiftLeft4_loop
+  ret
+ShiftGraphDownA:
+  ld e,a
+  ld l,a
+  ld h,0
+  ld d,h
+  add hl,hl
+  add hl,de
+  add hl,hl
+  add hl,hl
+  push hl
+  ld a,h
+  inc a
+  cpl
+  and 3
+  ld b,a
+  ld a,l
+  dec a
+  cpl
+  ld c,a
+  ld hl,(TempWord1)
+  dec hl
+  add hl,bc
+  ld de,(TempWord1)
+  inc d \ inc d \ inc d
+  dec de
+  lddr
+  pop bc
+ZeroMemE:
+  xor a
+SetMemE:
+  ld (de),a
+  ld h,d \ ld l,e
+  dec de
+  lddr
+  ret
+PiToken:
+; Check if the next char is a hex digit. If yes, convert as hexadecimal, else return the float value for pi
+  ld a,(hl)
+  sub '0'
+  sub 10
+  jr c,ConvHexStr
+  sub 7
+  sub 6
+  jr nc,floatpi
+ConvHexStr:
+  xor a
+  ex de,hl
+  ld h,a
+  ld l,a
+_:
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  or l
+  ld l,a
+  call IsHexTok
+  jr nc,-_
+_:
+  dec de
+  ld (parsePtr),de
+  ld b,h \ ld c,l
+  ex de,hl
+  ret
+floatpi:
+  call floatstackpush
+  push hl
+  ld de,float_pi
+  ex de,hl
+  call mov4_page0
+  pop bc
+  ret
+#ifdef include_ncr
+#include "cmd/ncr.z80"
+#endif
+ForToken:
+  ld a,(hl)
+  inc hl
+  push bc
+  call VarP
+  jr c,+_
+for_constant:
+  ;Save ForBackUp for nesting
+  ld hl,(ForBackUp)
+  ex (sp),hl
+  ld bc,for_const_ret
+  push bc
+  push hl
+
+  ld hl,ForBackUp
+  push hl
+  xor a
+  ld (hl),a
+  inc l
+  ld (hl),a
+  call ParseFullArg
+  dec bc
+  jr preStartForLoop
+for_const_ret:
+  pop hl
+  ld (ForBackUp),hl
+  ret
+_:
+  ld a,(de)
+  cp $2B
+  jr nz,for_constant
+  ld (parsePtr),de
+  push hl
+  call ParseNextFullArg
+  pop hl
+  push hl
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  call ParseNextFullArg
+preStartForLoop:
+  ld e,c
+  ld d,b
+  pop hl
+  pop bc
+StartForLoop:
+  push de             ;UpperBound
+  push hl             ;varPointer
+  ld hl,(parsePtr)
+  push hl             ;save parsePtr
+  call ParserNext
+  pop hl
+  ld (TempWord2),hl
+  pop hl              ;points to var data
+  pop de              ;upper bound
+  ;check DE <= (var)
+  ld a,(hl)
+  cp e
+  inc hl
+  ld a,(hl)
+  sbc a,d
+
+;Now increment
+  dec hl
+  inc (hl)
+  jr nz,+_
+  inc hl
+  inc (hl)
+_:
+  ret nc
+
+  push hl
+  ld hl,(TempWord2)
+  ld (parsePtr),hl
+  pop hl
+  jr StartForLoop
+
+FullToken:
+  ld a,(hl)
+  ld c,1
+  call EndOArg
+  call nz,isop
+  call nz,ParseFullArg
+SetSpeed:
+  in a,(20h)
+  ld b,a
+  bit 1,c
+  jr z,+_
+  cpl
+  and 1
+  ld c,a
+_:
+  in a,(2)
+  rlca
+  and c
+  out (20h),a
+  ld c,b
+  ld b,0
+  ret
+ClrDrawToken:
+  ld a,(hl)
+  call EndOArg
+  call nz,isop
+  jr z,g_ClrDraw
+  call ParseFullArg
+  ld h,b \ ld l,c
+  ld d,b \ ld e,c
+  jp ZeroMem768
+g_ClrDraw:
+  ld de,0
+  ld (textRow),de
+  push bc
+  ld hl,(BufPtr)
+  pop de
+ZeroMem768:
+  xor a
+  ld b,a
+  ld c,a
+  ld (textRow),bc
+  ld b,3    ;BC is now 768
+  jp SetMem
+
+ClrHomeToken:
+g_ClrHome:
+  ld hl,0
+  ld (CurRow),hl
+  push bc
+  ld b,128
+  ld hl,textShadow
+  ld a,' '
+  call SetSmallMem
+  pop bc
+  ret
+minToken:
+maxToken:
+  push af
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  pop hl
+  pop af
+g_max:
+  or a
+  sbc hl,bc
+  adc a,0
+  rra
+  ret nc
+  add hl,bc
+  ld b,h
+  ld c,l
+  ret
+factorialToken:
+  ld a,(hl)
+  call IsConditional \ jr z,+_
+  ld de,0 \ push de
+  jp factorialStepIn
+_:
+  set invlogic,(iy+gflags)
+  ret
+FillToken:
+  call ParseFullArg
+  ld hl,(BufPtr)
+  ld a,c
+  ld bc,300h
+  ld e,-1
+FillBufOR:
+  or a \ jr nz,FillBufInv
+_:
+  ld a,e \ or (hl) \ ld (hl),a
+  cpi
+  jp pe,-_
+  ret
+FillBufInv:
+  dec a \ jr nz,Checker1
+_:
+  ld a,e \ xor (hl) \ ld (hl),a
+  cpi
+  jp pe,-_
+  ret
+Checker1:
+  dec a \ jr nz,Checker2
+  ld a,$AA
+Checker:
+  ld c,64
+Checker1_loop:
+  ld b,12
+_:
+  ld (hl),a
+  inc hl
+  djnz -_
+  cpl \ dec c
+  jr nz,Checker1_loop
+  ret
+Checker2:
+  dec a \ jr nz,LoadBytePatternOR
+  ld a,55h \ jr Checker
+LoadBytePatternOR:
+  cp 22 \ jr nc,NotArg
+  push af \ push bc \ push hl
+  call ParseNextFullArg
+  ld d,b \ ld e,c \ pop hl \ pop bc \ pop af
+NotArg:
+  dec a \ jr z,FillBufOR+3
+LoadBytePatternXOR:
+  dec a \ jr z,FillBufInv+3
+LoadBytePatternAND:
+  dec a \ jr nz,LoadBytePatternErase
+FillBufAND:
+  ld a,e \ and (hl) \ ld (hl),a
+  cpi
+  jp pe,FillBufAND
+  ret
+LoadBytePatternErase:
+  dec a \ jr nz,BufCopy
+FillBufErase:
+  ld a,e \ cpl \ and (hl) \ ld (hl),a
+  cpi
+  jp pe,FillBufErase
+  ret
+BufCopy:
+  dec a \ jr nz,BufOR
+  jp mov768
+BufOR:
+  dec a \ jr nz,BufAND
+  ld a,(de) \ inc de
+  or (hl) \ ld (hl),a
+  cpi \ jp pe,BufOR+3
+  ret
+BufAND:
+  dec a \ jr nz,BufXOR
+  ld a,(de) \ inc de
+  and (hl) \ ld (hl),a
+  cpi \ jp pe,BufAND+3
+  ret
+BufXOR:
+  dec a \ jr nz,BufErase
+_:
+  ld a,(de) \ inc de
+  xor (hl) \ ld (hl),a
+  cpi \ jp pe,-_
+  ret
+BufErase:
+  dec a \ jr nz,BufSwap
+  ld a,(de) \ inc de
+  cpl \ and (hl) \ ld (hl),a
+  cpi \ jp pe,BufErase+3
+  ret
+BufSwap:
+  dec a \ jr nz,CopyDown
+  ld a,(de)
+  push af \ ld a,(hl) \ ld (de),a
+  pop af \ ld (hl),a
+  inc de
+  cpi \ jp pe,BufSwap+3
+  ret
+CopyDown:
+;If Copy Down
+  cp 5 \ jr nc,CopyDownOR
+  add hl,bc \ dec hl
+  push hl
+  ld h,d \ ld l,e
+  add hl,hl \ add hl,de
+  add hl,hl \ add hl,hl
+  pop de \ push de \ push hl \ ex de,hl
+  sbc hl,de \ ex de,hl
+  ld h,b \ ld l,c \ pop bc \ sbc hl,bc
+  ld b,h \ ld c,l
+  pop hl
+CopyDownOR:
+  dec a \ jr nz,CopyDownAND
+_:
+  ld a,(de)
+  or (hl)
+  ld (hl),a
+  dec de \ cpd
+  jp pe,-_
+  ret
+CopyDownAND:
+  dec a \ jr nz,CopyDownXOR
+_:
+  ld a,(de)
+  and (hl)
+  ld (hl),a
+  dec de \ cpd
+  jp pe,-_
+  ret
+CopyDownXOR:
+  dec a \ jr nz,CopyDownErase
+_:
+  ld a,(de)
+  xor (hl)
+  ld (hl),a
+  dec de \ cpd
+  jp pe,-_
+  ret
+CopyDownErase:
+  dec a \ jr nz,CopyUp
+_:
+  ld a,(de)
+  cpl
+  and (hl)
+  ld (hl),a
+  dec de \ cpd
+  jp pe,-_
+  ret
+CopyUp:
+;If Copy Up
+  cp 5 \ jr nc,CopyUpOr
+;de is number of pixels down to copy to
+;bc is 768
+;hl points to the buffer
+  push hl
+  ld h,d \ ld l,e
+  add hl,de \ add hl,de
+  add hl,hl \ add hl,hl
+  ld b,h \ ld c,l
+  pop de \ add hl,de
+;DE points to main buffer
+;HL points to offset
+  push hl
+  ld hl,768 \ sbc hl,bc
+  ld b,h \ ld c,l
+  pop hl
+  ex de,hl
+CopyUpOR:
+  dec a \ jr nz,CopyUpAND
+_:
+  ld a,(de)
+  or (hl)
+  ld (hl),a
+  inc de \ cpi
+  jp pe,-_
+  ret
+CopyUpAND:
+  dec a \ jr nz,CopyUpXOR
+_:
+  ld a,(de)
+  and (hl)
+  ld (hl),a
+  inc de \ cpi
+  jp pe,-_
+  ret
+CopyUpXOR:
+  dec a \ jr nz,CopyUpErase
+_:
+  ld a,(de)
+  xor (hl)
+  ld (hl),a
+  inc de \ cpi
+  jp pe,-_
+  ret
+CopyUpErase:
+#ifdef include_fire
+  dec a \ jr nz,fire
+#else
+  dec a \ ret nz
+#endif
+_:
+  ld a,(de)
+  cpl
+  and (hl)
+  ld (hl),a
+  inc de \ cpi
+  jp pe,-_
+  ret
+fire:
+#ifdef include_fire
+#include "cmd/fire.z80"
+#endif
+HorizontalToken:
+  call ParseFullArg
+
+  ld a,b \ or a \ ret nz
+  ld a,c
+  cp 64
+  ret nc
+  push bc
+  ld c,1
+  ld a,(hl)
+  cp 2Bh
+  call z,ParseNextFullArg
+  ld d,c
+  cp 2Bh
+  push de
+  ld bc,(BufPtr)
+  call z,ParseNextFullArg
+  pop de
+  pop hl
+  push bc
+  ld b,h
+  ld c,l
+  add hl,hl \ add hl,bc
+  add hl,hl \ add hl,hl
+  ld a,d
+  pop bc
+  add hl,bc
+  ld b,12
+  or a
+  jr z,SetSmallMem
+  dec a
+  jr nz,InvertMem
+  dec a
+SetSmallMem:
+  ld (hl),a
+  inc hl
+  djnz SetSmallMem
+  ret
+InvertMem:
+  ld a,(hl)
+  cpl
+  ld (hl),a
+  inc hl
+  djnz InvertMem
+  ret
+VerticalToken:
+  call ParseFullArg
+  push bc
+  ld c,1
+  cp $2B
+  call z,ParseNextFullArg
+  pop hl
+  push bc
+  push hl
+  cp 2Bh
+  call z,ParseNextFullArg_Buffer
+  pop bc
+  ld b,c
+  ld c,0
+  call getPixelLoc
+  pop bc      ;C is the method
+  ret nc
+
+;it is in-bounds
+  ld de,12
+  ld b,64
+  dec c
+  jr nz,draw_vert_toggle
+  ld c,a
+_:
+  ld a,(hl)
+  or c
+  ld (hl),a
+  add hl,de
+  djnz -_
+  ret
+
+draw_vert_toggle:
+  dec c
+  jr nz,draw_vert_off
+  ld c,a
+_:
+  ld a,(hl)
+  xor c
+  ld (hl),a
+  add hl,de
+  djnz -_
+  ret
+
+draw_vert_off:
+  cpl
+  ld c,a
+_:
+  ld a,(hl)
+  and c
+  ld (hl),a
+  add hl,de
+  djnz -_
+  ret
+
+ShadeToken:
+  call ParseFullArg
+  ld a,c
+  add a,$D9
+  jr nc,+_
+  xor a
+_:
+  dec a
+  out (16),a
+  ret
+StorePicToken:
+  call ParseFullArg
+  ld b,c
+  ld c,60h
+  push bc
+  cp 2Bh
+  ld bc,(BufPtr)
+  call z,ParseNextFullArg
+  pop hl
+  push bc
+  ld (OP1+1),hl
+  xor a
+  ld (OP1+3),a
+  rst rFindSym
+  jr c,+_
+  bcall(_DelVarArc)
+_:
+  ld hl,768
+  ld a,7
+  bcall(_CreateVar)   ;_CreatePict only stores 756 bytes.
+  inc de
+  inc de
+  pop hl
+mov768:
+;14656cc vs 16123cc
+  ld bc,768
+_:
+  call mov12
+  jp pe,-_
+  ret
+RecallPicToken:
+  call ParseFullArg
+  push bc
+  cp 2Bh
+  ld c,0
+  call z,ParseNextFullArg
+  ld b,c
+  push bc
+  ld bc,(BufPtr)
+  cp 2Bh
+  call z,ParseNextFullArg
+  pop af
+
+;A is the copy method
+;{stack} is the pic num
+  ld h,b
+  ld l,c
+;42
+  ex (sp),hl
+  push af
+  ld h,0
+  ;L is the pic num
+  ld (OP1+2),hl
+  ld a,$60
+  ld (OP1+1),a
+  rst rFindSym
+  jp c,pop2exit
+;stack={loc,method}
+  ld a,b
+  ld b,0
+  push af
+  call GetVarInfoVarFound
+  dec bc
+  ld a,b
+  inc bc
+  sub 3
+  jr c,+_
+  ld bc,768
+_:
+  pop af
+  ld de,saveSScreen
+  push bc
+  push de
+  call ReadArc
+  pop hl
+  pop bc
+  pop af
+  pop de
+  or a
+  jp z,BufCopy+3
+  ex de,hl
+  dec a
+  jp z,BufAND+3
+  dec a
+  jp z,BufXOR+3
+  dec a
+  jp z,BufOR+3
+  dec a
+  ret z
+  dec a
+  jp z,BufErase+3
+  ret
+BBTokens:
+  ld a,(hl)
+  inc hl
+  cp $64    ;the G-T token
+  jr nz,lowercasetokens
+  ld a,(hl)
+  ld bc,plotSScreen
+  cp $AE
+  jr nz,+_
+  inc hl
+  ld bc,appBackUpScreen
+_:
+  ld (parsePtr),hl
+  ret
+lowercasetokens:
+  ld (parsePtr),hl
+  cp $31      ;the `e` token
+  jr nz,+_
+  call floatstackpush
+  push hl
+  ld de,float_e
+  ex de,hl
+  call mov4_page0
+  pop bc
+  ret
+_:
+  cp $4B        ;Pmt_End
+  jr nz,+_
+  ld bc,(stack_top)
+  ret
+_:
+  cp $4C        ;Pmt_Bgn
+  jr nz,+_
+  ld bc,(stack_base)
+  ret
+_:
+  cp $B0
+  jr c,length
+  cp $CB
+  jr nc,length
+  cp $BB
+  jr c,+_
+  dec a
+_:
+  sub $AC
+  add a,a
+  inc a
+  ex de,hl
+  ld l,a
+  ld h,91h
+  ld c,(hl)
+  inc l
+  ld b,(hl)
+  ex de,hl
+  ld a,(hl)
+  inc hl
+  call VarP
+  ret nc
+  ld (parsePtr),de
+  ld d,b
+  ld e,c
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  set FactorialFlag,(iy+InternalFlag)
+  ret
+length:
+  cp 2Bh \ jr nz,inString
+  ld a,(hl)
+  cp $AE  ;'
+  jr nz,FindVarInfo
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  push bc
+  ld bc,3Fh
+  cp 2Bh \ call z,ParseNextFullArg
+  ld a,c
+  pop de
+  pop bc
+  pop hl
+  call SearchLine_00
+  ld (ThetaPrimeVar),hl
+  ld b,d \ ld c,e
+  ret
+;HL is start address
+;BC is the line number
+;E is the NewLine byte
+FindvarInfo:
+  call GetVarInfo2
+  ld (ThetaPrimeVar),hl
+  ret nc
+  ld bc,-1
+  ret
+inString:
+  cp 15 \ jr nz,conj
+  call ParseFullArg
+  push bc
+
+  call ParseNextFullArg
+  pop hl
+  push bc   ;second arg
+  push hl   ;first arg
+  push af
+  ld h,b
+  ld l,c
+  call GetGrammerStr
+  pop af
+  pop hl
+  push bc   ;size of second arg string
+
+  cp 2Bh        ;If there is another argument, then it is to put a limit on how many bytes to compare
+  push hl
+  jr z,+_
+  call nz,GetGrammerStr
+  scf
+_:
+  call nc,ParseNextFullArg
+  ld (ThetaPrimeVar),bc
+  pop hl
+  pop ix
+  pop de
+
+  call SearchString
+  jp nc,return_BC_0
+  ld b,h \ ld c,l
+  ret
+conj:
+;n = f(x) = 440*(12th root (2^(x-48))
+;A=1, B=3, C=4, D=6, E=8, F=9, and G=11
+;Sharp is add 1
+;flat is minus 1
+  cp 37
+  jp nz,subToken
+  ld a,(hl)
+  cp $AE
+  jr nz,GrammerSound
+  call ParseNextFullArg
+  push bc
+  inc hl \ ld a,(hl)
+  cp $AE \ push af
+  call ParseNextFullArg
+  pop af
+  jr nz,SoundData
+  ld hl,freqout
+  ld (next_page_call_address),hl
+  ld h,b \ ld l,c \ pop bc
+  jp next_page_call
+
+
+SoundData:
+  push bc
+  call ParseNextFullArg
+  ld hl,SoundLoop
+  ld (next_page_call_address),hl
+  pop hl \ pop de
+  ld a,b \ or c
+  jp nz,next_page_call
+  ret
+
+GrammerSound:
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+;Octave*12
+  ld h,b
+  ld l,c
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+
+;Now add in the note
+  pop bc
+  add hl,bc
+
+;get offset into the LUT
+  add hl,hl
+
+;get the frequency
+  ld bc,FrequencyLUT
+  add hl,bc
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+
+  push bc
+  call ParseNextFullArg
+  ;multiply BC by 34483, then divide by 32
+
+  ld de,34483
+  call DE_Times_BC
+  xor a
+  add hl,hl \ rl e \ rl d \ rla
+  add hl,hl \ rl e \ rl d \ rla
+  add hl,hl \ rl e \ rl d \ rla
+  ld l,h \ ld h,e \ ld e,d \ ld d,a
+  ;DEHL is how long to run it
+
+  ld bc,noteloop_begin
+  ld (next_page_call_address),bc
+  pop bc
+  jp next_page_call
+
+subToken:
+  cp 12 \ jr nz,ANOVAsubset
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  push bc
+  ld hl,(parsePtr)
+  inc hl
+  ld (parsePtr),hl
+  call GetVarInfo
+  jp c,Pop2Exit
+  or a \ jp nz,Pop2Exit
+  ld hl,(parsePtr)
+  ld (parsePtr),hl
+  ex de,hl
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ inc hl
+  ld (TempWord1),hl
+  ld h,b \ ld l,c
+  pop bc
+  sbc hl,bc
+  pop de
+  ret c
+  sbc hl,de
+  jr nc,DelGoodSize
+  ex de,hl
+  add hl,de
+  ld h,a \ cp l \ ret z
+  ex de,hl
+  ld hl,0
+DelGoodSize:
+  add hl,bc
+  push de
+  ld de,(TempWord1)
+  ex de,hl
+  dec hl \ ld (hl),d
+  dec hl \ ld (hl),e
+  inc hl \ inc hl
+  add hl,bc
+  pop de
+  push hl
+  ld a,d \ or e
+  jr z,+_
+  bcall(_DelMem)
+_:
+  ld hl,(parsePtr)
+;  ld (parsePtr),hl   ;seems redundant, I probably messed up when I was cleaning the code.
+  pop bc
+  ret
+ANOVAsubset:
+DelvarToken:
+  cp 54h \ jr nz,UnArchiveToken
+  call GetVarInfo \ ret c
+  bcall(_DelVarArc)
+  ret
+UnArchiveToken:
+  cp 69h \ jr nz,ArchiveToken
+  call GetVarInfo \ ret c
+  or a \ ret z
+  bcall(_Arc_Unarc)
+  call setup_readarc
+  bcall(_ChkFindSym)
+  ex de,hl
+  ld e,(hl) \ inc hl
+  ld d,(hl) \ inc hl
+  ex de,hl \ ld c,e \ ld b,d
+  ld (ThetaPrimeVar),hl
+  ret
+ArchiveToken:
+  cp 68h \ jr nz,AsmToken
+  call GetVarInfo \ ret c
+  or a
+  ret nz
+  bcall(_Arc_Unarc)
+setup_readarc:
+  call setupRAMdata
+#ifndef include_TSA
+  ld hl,ReadArcData
+  ld de,TSA
+;mov 71 bytes
+  call mov14
+  call mov14
+  call mov14
+  call mov14
+  call mov15
+  in a,(6)
+  ld (page_restore),a
+  ld (bincomparepagerestore),a
+#ifdef include_interrupt
+  dec a
+  ld (interrupt_page),a
+#endif
+#endif
+  ret
+AsmToken:
+  cp 6Ah \ jr nz,expr
+; jr $
+  push bc
+  call GetVarName
+  ex de,hl
+  ld de,OP1
+  ldir
+  xor a
+  ld (de),a
+  ld hl,9D95h ;start VarRAM
+  ld (TempWord1),hl
+  pop hl \ ld (TempWord2),hl
+  bcall(_ChkFindSym)
+  ld a,b
+  ld (TempWord3),a
+  ex de,hl
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ inc hl
+  ld a,(hl) \ inc hl \ cp $BB
+  ret nz
+NotASMHeader:
+  ld a,(hl) \ inc hl \ cp $6D
+  jr nz,CheckUnsquishedHex
+StartASMProg:
+  dec bc \ dec bc
+;BC is size of the data
+;HL points to the bytes to copy
+;(TempWord3) is the flash page
+  push hl \ push bc
+  ld h,b \ ld l,c
+  bcall(_EnoughMem)
+  jp c,ErrMEM
+  ex de,hl
+;HL # bytes
+;DE addr
+  ld de,9D95h ;start VarRAM
+  push de
+  bcall(_InsertMem)
+  pop de \ pop bc \ pop hl
+  ld a,(TempWord3) \ or a
+  jr nz,+_
+  add hl,bc
+_:
+  push bc
+  call ReadArc
+  pop de
+  jr +_
+CheckUnsquishedHex:
+  cp 6Ch \ jr nz,NotASMHeader
+  jr NotASMHeader
+_:
+  ld hl,(parsePtr)
+  add hl,de
+  ld (parsePtr),hl
+;===============================================================
+CallProg:
+  ld bc,(TempWord2)
+  push de
+  ld de,AfterRet \ push de
+  ld de,(TempWord1) \ push de
+  ret
+AfterRET:
+  ld hl,(parsePtr)
+  pop de
+  or a
+  sbc hl,de
+  ld (parsePtr),hl
+  ld hl,9D95h ;start VarRAM
+;Delmem: HL address
+;        DE # of bytes
+  bcall(_DelMem)
+  ret
+expr:
+  cp 2Ah \ jr nz,AsmPrgm
+  call ParseFullArg
+g_expr:
+  ld hl,(parsePtr) \ push hl
+  ld (parsePtr),bc
+  call ParseCondition
+  pop hl
+  ld (parsePtr),hl
+  ret
+AsmPrgm:
+  cp 6Ch \ jr nz,OMNom
+  push bc
+  ld b,h \ ld c,l
+  call ConvHexTo86ECh
+  ex de,hl
+  ld (parsePtr),hl
+  pop bc
+  jp 86ECh
+OMNom:
+;Note from Future Zeda: "I love you Past Zeda."
+  cp 5 \ jr nz,BBrandInt
+#include "cmd/nom.z80"
+BBrandInt:
+  cp 10 \ jr nz,BBLCM
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  push bc
+  call prng16
+  ld b,h
+  ld c,l
+  pop hl
+  pop de
+  or a \ sbc hl,de
+  push de
+  call HL_Times_BC
+  pop hl \ add hl,de
+  ld b,h \ ld c,l
+  ret
+BBLCM:
+  cp 8
+  jr nz,BBGCD
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  pop de
+LCM_BC_DE:
+  push de
+  call DE_Times_BC
+  ex (sp),hl
+  call GCDHL_BC
+  pop hl
+  call HL_Div_BC
+  ld b,h
+  ld c,l
+  ret
+BBGCD:
+  cp 9
+  ret nz
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  pop hl
+GCDHL_BC:
+  ld d,b
+  ld e,c
+#include "math/gcdHL_DE.z80"
+
+CircleToken:
+#define circle_pattern TempWord1
+  call ParseFullArg     ;Y
+  push bc
+  call ParseNextFullArg ;X
+  pop de
+  ld d,c
+  push de
+  call ParseNextFullArg ;R
+  push bc
+  cp 2Bh
+  ld c,1
+  call z,ParseNextFullArg ;Method
+  ld b,c
+  push bc
+  ld c,0
+  cp 2Bh
+  call z,ParseNextFullArg ;pattern
+  push bc
+  cp 2Bh
+  call z,ParseNextFullArg_Buffer  ;buffer
+
+  pop hl
+  ld a,l
+  ld (circle_pattern),a
+  pop af    ;method in A
+  pop de    ;radius in E
+  pop bc
+
+  dec a
+  jr z,circle_bbcf
+  dec a
+  jr z,circle_wbcf
+  dec a
+  jr z,circle_xbcf
+
+  dec a
+  jr z,circle_wbwf
+  dec a
+  jr z,circle_bbbf
+  dec a
+  jr z,circle_xbxf
+
+  dec a
+  jr z,circle_wbbf
+  dec a
+  jr z,circle_wbxf
+
+  dec a
+  jr z,circle_bbwf
+  dec a
+  jr z,circle_bbxf
+
+  dec a
+  jr z,circle_xbwf
+  dec a
+  ret nz
+
+circle_xbbf:
+  push de
+  push bc
+  call circle_xbcf
+  pop bc
+  pop de
+  jr circle_bf
+
+circle_wbcf:
+  ld ix,pixelOff_pattern
+  jr circle_p0
+circle_bbcf:
+  ld ix,pixelOn_pattern
+  jr circle_p0
+circle_xbcf:
+  ld ix,pixelToggle_pattern
+  jr circle_p0
+
+circle_wbwf:
+  push de
+  push bc
+  call circle_wbcf
+  pop bc
+  pop de
+circle_wf:
+  ld ix,horizline_white
+  jp drawfilledcircle
+
+circle_bbbf:
+  push de
+  push bc
+  call circle_bbcf
+  pop bc
+  pop de
+circle_bf:
+  ld ix,horizline_black
+  jp drawfilledcircle
+
+circle_xbxf:
+  push de
+  push bc
+  call circle_xbcf
+  pop bc
+  pop de
+circle_xf:
+  ld ix,horizline_invert
+  jp drawfilledcircle
+
+circle_wbbf:
+  push de
+  push bc
+  call circle_wbcf
+  pop bc
+  pop de
+  jr circle_bf
+
+circle_wbxf:
+  push de
+  push bc
+  call circle_wbcf
+  pop bc
+  pop de
+  jr circle_xf
+
+circle_bbwf:
+  push de
+  push bc
+  call circle_bbcf
+  pop bc
+  pop de
+  jr circle_wf
+
+circle_bbxf:
+  push de
+  push bc
+  call circle_bbcf
+  pop bc
+  pop de
+  jr circle_xf
+
+circle_xbwf:
+  push de
+  push bc
+  call circle_xbcf
+  pop bc
+  pop de
+  jr circle_wf
+
+
+
+circle_p0:
+  push hl
+  ld hl,circle
+  ld (next_page_call_address),hl
+  pop hl
+  jp next_page_call
+
+drawfilledcircle:
+  push hl
+  ld hl,filledcircle
+  ld (next_page_call_address),hl
+  pop hl
+  jp next_page_call
+
+PauseToken:
+  ld a,(hl)
+  call EndOArg
+  call nz,isop
+  push bc
+  jr nz,NotBASICPause
+_:
+  bit OnBlockFlag,(iy+UserFlags)
+  call z,onbreak
+  call GetKeyDebounce
+  cp 9
+  jr nz,-_
+_:
+  bit OnBlockFlag,(iy+UserFlags)
+  call z,onbreak
+  call GetKeyDebounce
+  or a
+  jr nz,-_
+  pop bc
+  ret
+NotBASICPause:
+  ld a,(hl) \ cp $CE \ jr nz,Pause
+  bit invlogic,(iy+gflags)
+  res invlogic,(iy+gflags)
+  inc hl
+  jr z,Pauseif
+  jr PauseNotIf
+Pause:
+  call ParseFullArg
+  pop de
+g_Pause:
+  push de
+  ei
+_:
+  bit OnBlockFlag,(iy+UserFlags)
+  call z,onbreak
+  halt
+  dec bc
+  ld a,b
+  or c
+  jr nz,-_
+  pop bc
+  ret
+PauseIf:
+  call PauseIfLoop
+  jr nz,PauseIf
+  pop bc \ ret
+PauseNotIf:
+  call PauseIfLoop
+  jr z,PauseNotIf
+  pop bc \ ret
+PauseIfLoop:
+  ld (parsePtr),hl
+  push hl
+  call ParseCondition
+  ld a,b
+  or c
+  pop hl
+  ret
+PxlTokens:
+  sub $A0
+PxlTestToken:
+  push af
+  ld a,(hl)
+  cp $AE
+  ;jr z,PxlTestBox
+  jp z,ErrBadToken
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  cp 2Bh
+  ld a,c
+  push af
+  call z,ParseNextFullArg_Buffer
+  pop af
+  pop bc
+  ld b,a
+  pop de
+PlotPixel:
+  call GetPixelLoc
+  ld bc,0
+  jr c,+_
+  bit pxlBoundsRes,(iy+UserFlags)
+  ret z
+  inc c
+  ret
+_:
+  ld e,a
+  and (hl)
+  jr z,+_
+  inc c
+_:
+  dec d
+  jr nz,+_
+  ld a,e \ or (hl) \ ld (hl),a \ ret
+_:
+  dec d
+  jr z,+_
+  dec d
+  ret nz
+  ld a,e
+_:
+  xor (hl) \ ld (hl),a \ ret
+prgmToken:
+  ld (TempWord1),bc
+  ld a,(hl) \ inc hl
+  cp $10
+  jr nz,+_
+  ld (parsePtr),hl
+  ld a,(hl)
+  inc hl
+_:
+  push af
+  call VarP
+  ex (sp),hl
+  push af
+  push hl
+  call ParseFullArg
+  pop af
+  jr nz,g_Call
+  inc hl
+  ld (qmarkVar),hl
+  .db $C2   ;start of jp nz,*, basically skips the 'or 1'
+g_Call:
+  or 1
+  push af
+  ld de,(progStart)
+  ld hl,(parsePtr)
+  or a
+  sbc hl,de
+  push hl
+  ex de,hl
+  sbc hl,bc
+  push hl
+  ld (parsePtr),bc
+  ld bc,(TempWord1)
+  call ParserNext
+  pop hl
+  pop de
+  push hl
+  ld hl,(progStart)
+  add hl,de
+  ld (parsePtr),hl
+  pop de
+  ld hl,(progStart)
+  sbc hl,de
+  ex de,hl
+  pop af
+  jr nz,+_
+  pop af
+  pop hl
+  ld hl,(qmarkVar)
+  ld (parsePtr),hl
+  ret
+_:
+  pop af \ pop hl
+  ret nc
+  ld (hl),e \ inc hl
+  ld (hl),d
+  ret
+DispToken:
+  ld a,(hl)
+  cp 11
+  jr z,GrayBufOnly
+  cp $AE
+  jr z,BlackBufOnly
+  call ParseFullArg
+  ld (BufPtr),bc
+  ld (GrayBufPtr),bc
+  ret
+GrayBufOnly:
+  call ParseNextFullArg
+  ld (GrayBufPtr),bc
+  ret
+BlackBufOnly:
+  call ParseNextFullArg
+  ld (BufPtr),bc
+  ret
+TextToken:
+  ld a,(hl)
+  cp 4 \ jr z,+_
+  cp 3Eh \ jr z,+_
+  cp 3Fh \ jr nz,NoRC
+_:
+  ld bc,(textRow)
+  ld l,b \ ld b,0
+  ld h,b
+  ld (ThetaPrimeVar),hl
+  ret
+NoRC:
+  res SlowTextFlag,(iy+InternalFlag)
+  cp 10
+  jr nz,+_
+SlowText:
+  set SlowTextFlag,(iy+InternalFlag)
+  inc hl
+  ld (parsePtr),hl
+  ld a,(hl)
+_:
+  cp $AE
+  jp nz,FindingTextStr
+  inc hl
+  ld (parsePtr),hl
+  call LoadTextCoordinates
+  call ParseNextFullArg
+  push bc
+  push de
+  ld a,(hl)
+  cp 2Bh
+  ld c,10
+  call z,ParseNextFullArg+3
+
+  pop hl
+  pop de
+  bit SignedText,(iy+UserFlags)
+  jr z,+_
+  bit 7,d
+  jr z,+_
+  xor a \ sub e \ ld e,a
+  sbc a,a \ sub d \ ld d,a
+;  ld a,b \ sbc a,e \ ld e,a
+;  ld a,b \ sbc a,d \ ld d,a
+  push de \ push hl \ push bc
+  ld a,1Ah \ call PutSC
+  pop bc \ pop hl \ pop de
+_:
+  dec c
+  ret z
+  inc c
+  ret z
+  push de
+  pop ix
+  ld de,OP2
+  xor a
+  ld (de),a
+DispNumBase32:
+;Inputs:
+;     C is the base (use 2 to 36)
+;     HLIX is the number to display
+;     IX points to where to write the string
+  call HLIX_Div_C
+  add a,30h
+  cp 3Ah
+  jr c,+_
+  add a,7
+_:
+  dec de
+  ld (de),a
+  ld a,ixh
+  or ixl \ or h \ or l
+  jr nz,DispNumBase32
+  ex de,hl
+  jp GPutS
+
+FindingTextStr:
+  call LoadTextCoordinates
+  ret nz
+  inc hl
+  ld a,(hl)
+  cp 3Ah      ;. displays a float
+  jr nz,+_
+  ld (parsePtr),hl
+  call ParseNextFullArg
+  ld hl,single2str
+  ld (next_page_call_address),hl
+  ld h,b
+  ld l,c
+  ld bc,OP1
+  call next_page_call
+  ld h,b
+  ld l,c
+  jp GPutS
+_:
+  cp $AE
+  jr nz,+_
+  ld (parsePtr),hl
+  call ParseNextFullArg
+  ld a,c
+  jp PutSC
+_:
+  cp 11
+  jr nz,+_
+  ld (parsePtr),hl
+  call ParseNextFullArg
+  ld h,b \ ld l,c
+  jp GPutS
+_:
+  call ParseNextFullArg
+  push bc
+  cp 2Bh
+  jr nz,+_
+  call ParseNextFullArg
+  set Xis0,(iy+ParticleFlag)
+  xor a
+_:
+  pop hl
+  jr z,TokenTextLoop
+PutTokenText:
+;    HL points to the string
+  res Xis0,(iy+ParticleFlag)
+  ld bc,-1
+TokenTextLoop:
+  ld a,(hl)
+  bit Xis0,(iy+ParticleFlag)
+  jr nz,+_
+  or a
+  ret z
+  cp 4
+  ret z
+  cp 3Fh
+  ret z
+  cp 2Ah
+  ret z
+_:
+  push  hl
+  push bc
+  bcall(_Get_Tok_Strng)
+  pop hl
+  or a
+  sbc hl,bc
+  jr nc,+_
+  add hl,bc
+  ld b,h
+  ld c,l
+  ld l,0
+_:
+  ex (sp),hl
+  ld a,(hl)
+  call Is_2_Byte
+  jr nz,+_
+  inc hl
+_:
+  push hl
+  ld hl,OP3
+  call PutSM
+  pop hl
+  pop bc
+  inc bc
+  cpi
+  jp pe,TokenTextLoop
+  ret
+;===============================================================
+LoadTextCoordinates:
+;===============================================================
+  ld a,(hl)
+  cp 11
+  jr nz,+_
+  ld (parsePtr),hl
+  ret
+_:
+  ld bc,(textRow)
+  call ParseFullArg
+  ld a,c
+  ld (textRow),a
+  ld bc,(textCol)
+  call ParseNextFullArg
+  ld a,c
+  ld (textCol),a
+  ld a,(hl)
+  cp 2Bh
+  ret
+;===============================================================
+PtOff:
+  call ParseFullArg
+  ld a,c
+  and 7
+  push af
+  bit 3,c
+  push af
+  call ParseNextFullArg
+  pop af
+  jr z,+_
+  call ConvHexTo86ECh
+  ld bc,86ECh
+_:
+  push bc
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  pop de
+  ld d,c
+  push de
+  cp 2Bh
+  ld c,1
+  call z,ParseNextFullArg
+  push bc
+  cp 2Bh
+  ld c,8
+  call z,ParseNextFullArg
+  pop hl
+  ld h,c
+  push hl
+  ld hl,(parsePtr)
+  ld a,(hl)
+  cp $2B
+  call z,ParseNextFullArg_Buffer
+  pop hl
+  pop bc
+  pop de
+  pop af
+  jr sprite
+#include "gfx/bigsprite.z80"
+
+
+LineToken:
+  ld a,(hl)
+  cp $AE
+  jp z,gfx_line
+
+
+;     A is the type of rectangle to draw
+;        0 =White
+;        1 =Black
+;        2 =XOR
+;        3 =Black border
+;        4 =White border
+;        5 =XOR border
+;        6 =Black border, white inside
+;        7 =Black border, XOR inside
+;        8 =White border, black inside
+;        9 =White border, XOR inside
+;        10=Shift Up
+;        11=Shift Down
+;     B is the height
+;     C is the Y pixel coordinate
+;     D is the width in pixels
+;     E is is the X pixel coordinate
+
+;So we get E,C,B,D,A
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  pop hl
+  ld h,c
+  push hl
+  call ParseNextFullArg
+  push bc
+  cp 2Bh
+  ld c,1
+  call z,ParseNextFullArg
+  push bc
+  cp 2Bh
+  call z,ParseNextFullArg_Buffer
+  pop bc    ;method in C
+  ld a,c
+  pop hl    ;L is what needs to be the D value
+  pop bc
+  pop de
+  ld d,l
+  jp DrawRectToGraph
+gfx_line:
+;x1,y1,x2,y2[,method[,buffer
+;
+
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  pop de
+  ld b,e
+  push bc
+
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  pop de
+  ld b,e
+  push bc
+
+  ld c,1
+  cp $2B
+  call z,ParseNextFullArg
+
+;Now get the pointer to the plotting function
+  ld b,a    ;save A
+  ld a,c
+  cp 3
+  sbc a,a
+  and c
+  add a,a
+  add a,plotLUT&255
+  ld l,a
+  ld a,plotLUT>>8
+  adc a,0
+  ld h,a
+  ld c,(hl)
+  inc hl
+  ld a,b    ;restore A
+  ld b,(hl)
+
+  push bc
+  cp $2B
+  call z,ParseNextFullArg_Buffer
+  pop ix
+  pop de
+  pop hl
+#include "gfx/line.z80"
+plotLUT:
+  .dw pxloff
+  .dw pxlon
+  .dw pxlchange
+
+LeftParantheses:
+;Read a byte
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  ld c,(hl)
+  ld b,0
+  ret
+LeftBracket:
+;Read a word (little endian)
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  ret
+iPart:
+;Write a word (little endian)
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  pop hl
+  ld e,(hl)
+  ld (hl),c
+  inc hl
+  ld d,(hl)
+  ld (hl),b
+  ld b,d
+  ld c,e
+  ret
+
+int:
+;Write byte
+  ld a,(hl)
+  cp $3A
+  jr z,intf
+  cp $AE      ;checks for '
+  push af
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  pop hl
+  pop af
+  jr nz,+_ ;Write a byte
+  ld a,(bc)
+  ld e,(hl)
+  ld (hl),a
+  ld a,e
+  ld (bc),a
+  ret
+_:
+  ld e,(hl)
+  ld (hl),c
+  ld c,e
+  ld b,$00
+  ret
+intf:
+  call ParseNextFullArg
+  ld hl,singleTo_int16
+  ld (next_page_call_address),hl
+  ld h,b
+  ld l,c
+  call next_page_call
+  ld b,h
+  ld c,l
+  ret
+GetToken:
+  ld a,(hl)
+  cp $AE
+  jp z,GetByte
+  call GetVarName
+  ex de,hl
+  ld de,OP1
+  ldir
+  xor a
+  ld (de),a
+  bcall(_ChkFindSym)
+VarTokenStepIn:
+  jp c,return_BC_0
+  inc de
+  inc de
+  ld c,a
+  ld (ThetaPrimeVar),bc
+  ld b,d
+  ld c,e
+  ret
+RepeatToken:
+  push hl
+  ex de,hl
+  pop hl
+  call EndOfLine
+  ld (parsePtr),hl
+  bit invlogic,(iy+gflags)
+  res invlogic,(iy+gflags)
+  jr nz,NotRepeatLoop
+RepeatLoop:
+  call RepeatLooper
+  jr z,RepeatLoop
+ExitRepeat:
+  ld (parsePtr),hl
+  ret
+NotRepeatLoop:
+  call RepeatLooper
+  jr nz,NotRepeatLoop
+  jr ExitRepeat
+RepeatLooper:
+  push de
+  call ParserNext
+  ld hl,(parsePtr)
+  pop de
+  push de
+  push hl
+  ld (parsePtr),de
+  push bc
+  call ParseCondition
+  ld a,b \ or c
+Pop3Exit:
+  pop bc
+Pop2Exit:
+  pop hl
+Pop1Exit:
+  pop de
+  ret
+WhileToken:
+  bit invlogic,(iy+gflags)
+  res invlogic,(iy+gflags)
+  jr nz,NotWhileLoop
+WhileLoop:
+  push hl
+  ld (parsePtr),hl
+  call ParseCondition
+  ld a,b
+  or c
+  jr z,EndWhileLoop
+  call ParserNext
+  pop hl
+  jr WhileLoop
+NotWhileLoop:
+  push hl
+  ld (parsePtr),hl
+  call ParseCondition
+  ld a,b
+  or c
+  jr nz,EndWhileLoop
+  call ParserNext
+  pop hl
+  jr NotWhileLoop
+EndWhileLoop:
+  pop de
+  call FindEndToken
+  ld (parsePtr),hl
+  ret
+EndToken:
+  pop de
+  ret
+ErrorJump:
+  ; If we are currently parsing an errorthen we don't want to be stuck in an infinite loop !
+  bit errorChecking,(iy+InternalFlag)
+  ret nz
+  set errorChecking,(iy+InternalFlag)
+
+  push de
+  push hl
+  push bc
+  ld hl,(parsePtr)
+  ld (ErrorLoc),hl
+  ld hl,(parseError)
+  ld a,h
+  or l
+  ld a,(cxErrorEP)
+  call z,GramHandl
+  jr z,L5c05
+  ld c,a
+  ld b,0
+  ld de,(parsePtr)
+  ld (qmarkVar),de
+  ld (parsePtr),hl
+  ld hl,(ThetaPrimeVar)
+  push hl
+  ld hl,(Ans)
+  ld (Ans),bc
+  push hl
+  call ParserNext
+  ld a,(hl)
+  ld hl,(qmarkVar)
+  ld (parsePtr),hl
+  cp $11
+  jr nz,+_
+  pop hl
+  pop hl
+  pop hl
+  jr L5c06
+_:
+  pop hl
+  ld (Ans),hl
+  pop hl
+  ld (ThetaPrimeVar),hl
+L5c05:
+  pop bc
+L5c06:
+  pop hl
+  pop de
+  res errorChecking,(iy+InternalFlag)
+  ret
+PtOn:
+  call ParseFullArg
+  ld a,c \ and 7
+  res SlowTextFlag,(iy+InternalFlag)
+  bit 3,c
+  jr z,+_
+  set SlowTextFlag,(iy+InternalFlag)
+_:
+  push af
+  cp 7 \ jr nz,+_
+  ld hl,flags+33
+  ld a,16
+  xor (hl)
+  ld (hl),a
+_:
+  call ParseNextFullArg
+  bit SlowTextFlag,(iy+InternalFlag)
+  jr z,+_
+  call ConvHexTo86ECh
+  ld bc,saveSScreen
+_:
+  push bc
+  call ParseNextFullArg
+  ld (TempWord2),bc
+  ld b,0
+  ld h,b
+  ld l,c
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  push hl
+  call ParseNextFullArg
+  pop hl
+  add hl,bc
+  push hl
+  cp 2Bh
+  ld c,1
+  call z,ParseNextFullArg
+  ld b,c
+  push bc
+  cp 2Bh
+  ld c,$08
+  call z,ParseNextFullArg
+  pop af
+  ld b,a
+  ld a,(TempWord2)
+  add a,c \ dec a \ sub 64
+  jr c,HeightIsFinePtOn
+  ld d,a \ ld a,c \ sub d \ ld c,a \ dec c
+HeightIsFinePtOn:
+  push bc
+  ld bc,(BufPtr)
+  ld hl,(parsePtr)
+  ld a,(hl)
+  cp 2Bh
+  call z,ParseNextFullArg
+  ld d,b \ ld e,c
+  pop bc
+  pop hl
+  add hl,de
+  pop de
+  ld a,(TempWord2) \ inc a \ sub 64 \ jp nc,pop1exit
+  pop af
+DrawSpriteXxY:
+  push hl
+  ld hl,bigtile
+  ld (next_page_call_address),hl
+  pop hl
+  jp next_page_call
+QuoteToken:
+  push hl
+  call GetGrammerStr
+  ld (parsePtr),hl
+  ld (ThetaPrimeVar),bc
+  pop bc
+  ret
+GetKeyToken:
+  ld a,(hl)
+  cp 16
+  jr nz,GetKey
+  call ParseNextFullArg+3
+  ld a,c
+CheckKey:
+;46 bytes:
+;Input:
+;     A is the key to test for
+;Output:
+;     BC is 1 if the key is pressed, 0 if it is not
+;     z if the key is pressed, nz if not
+  cp 41 ;on-key
+  jr z,check_for_ON_key
+  di
+_:
+  dec a \ and 63
+  ld b,a
+  and 7
+  srl b \ srl b \ srl b
+  inc b \ inc a
+;b = 2; a = 1
+  ld c,a
+  ld a,7Fh
+_:
+  rlca
+  djnz -_
+  out (1),a
+  ld b,c
+  ld a,80h
+_:
+  rlca
+  djnz -_
+  ld c,a
+  in a,(1)
+  and c
+CheckKey_End:
+  ld c,b
+  ret nz
+  inc c
+  ret
+check_for_ON_key:
+  in a,(4)
+  and 8
+  ld bc,0
+  ret nz
+  inc c
+  ret
+
+GetKeyDebounce:
+  ei
+  halt
+  call GetKey
+  ld hl,k_save
+  cp (hl)
+  jr nz,newkeypress
+;if the keys match, decrement k_count
+  inc hl
+  dec (hl)
+  jr z,+_
+  xor a
+  ret
+_:
+  inc hl
+  ld a,(hl)
+  sub K_DELAY_ACCEL+1
+  jr nc,+_
+  xor a
+_:
+  inc a
+  ld (hl),a
+  dec hl
+  ld (hl),a
+  dec hl
+  ld a,(hl)
+  ret
+newkeypress:
+  ld (hl),a
+  inc hl
+  ld (hl),K_DELAY_DEFAULT
+  inc hl
+  ld (hl),K_DELAY_DEFAULT
+  ret
+;===============================================================
+GetKey:
+;===============================================================
+;Outputs:
+;     a is a value from 0 to 56 that is the keypress
+;    bc is also the key press
+;     d has a bit reset, the rest are set (this is the last key group tested)
+;     e is a with a mask of %11111000
+;    hl is not modified
+;===============================================================
+  di
+  ld de,$FE00
+  ld a,d
+  out (1),a
+  push af \ pop af
+  in a,(1)
+  ld b,e
+  xor $FF \ jr z,+_
+  ld d,a
+  ld c,16 \ cp 15 \ ret z
+  ld c,5
+  ld a,3 \ and d \ cp 3 \ ret z \ inc c
+  ld a,5 \ and d \ cp 5 \ ret z \ inc c
+  ld a,10 \ and d \ cp 10 \ ret z \ inc c
+  ld a,12 \ and d \ cp 12 \ ret z
+  ld a,d
+  cpl
+  ld c,e
+  jp key_add
+_:
+  ld c,a
+_:
+  rlc d
+  ld a,d
+  out (1),a
+  inc e
+  sub 7Fh
+  jp z,CheckOnPress
+  in a,(1)
+  inc a
+  jr z,-_
+  dec a
+key_add:
+  inc c
+  rra
+  jr c,key_add
+  ld a,e
+  rlca \ rlca \ rlca
+  add a,c
+  ld c,a
+  ret
+CheckOnPress:
+  in a,(4)
+  and 8
+  sub 1
+  sbc a,a
+  and 41
+  ld c,a
+  ret
+ElseToken:
+;Check for an If token, maybe?
+  push bc
+  call FindEndToken
+  ld (parsePtr),hl
+  pop bc
+  pop af
+  ret
+IfToken:
+  push bc
+  call ParseCondition
+  ld a,b
+  or c
+  jr z,+_
+  scf
+_:
+  pop bc
+  ld hl,flags+gflags
+  bit invlogic,(hl)
+  jr z,+_
+  res invlogic,(hl)
+  ccf
+_:
+  ret c
+  ld hl,(parsePtr)
+  inc hl
+  ld a,(hl)
+  push bc
+  cp $CF    ;Then token
+  jr z,nothen
+  call EndOfLine
+_:
+  ld (parsePtr),hl
+  pop bc
+  ret
+nothen:
+
+  call z,FindElseEnd
+  cp $D0  ;Check if it was an Else token
+  jr nz,-_
+  ld (parsePtr),hl
+  pop bc
+  jp ParserNext
+VarToken:
+  call VarP
+  ld (parsePtr),de
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  ex de,hl
+  ld a,(hl)
+  inc hl
+  call VarP
+  ret nc
+  ld (parsePtr),de
+  ld e,c
+  ld d,b
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  set FactorialFlag,(iy+InternalFlag)
+  ret
+ParseNextFullArg_Buffer:
+;Input: z flag
+;Result:
+;  z  : Parse the next argument, result in BC
+;  nz : Returns BC as the pointer to the main buffer
+  ld bc,(BufPtr)
+  call z,ParseNextFullArg
+  ld (gbuf_temp),bc
+  ret
+ParseNextFullArg:
+  ld hl,(parsePtr)
+ParseNextFullArg_Inc:
+  inc hl
+ParseNextFullArg_HL:
+  ld (parsePtr),hl
+ParseFullArg:
+  bit FactorialFlag,(iy+InternalFlag)
+  jr nz,+_
+  ld de,0
+_:
+  res FactorialFlag,(iy+InternalFlag)
+  ld hl,(parsePtr)
+  ld a,(hl)
+  call EndOArg
+  ret z
+  cp 29h
+  ret z
+  call ParseArg
+  jr ParseFullArg
+ParseCondition:
+  call ParseArg
+  ld hl,(parsePtr)
+  ld a,3Fh
+  cp (hl)
+  jr nz,ParseCondition
+  ret
+GetNextVarNum:
+  inc hl
+  ld a,(hl)
+  cp $AE
+  jr nz,+_
+  set Mod2nd,(iy+InternalFlag)
+  ret
+_:
+  sub 3Ah
+  add a,10
+  ret nc
+  ld a,d
+  add a,a
+  add a,a
+  add a,d
+  add a,a
+  ld d,a
+  ld a,(hl)
+  and 15
+  add a,d
+  ld d,a
+  jr GetNextVarNum
+StoString:
+  ld e,a
+  ld d,(hl)
+  inc d
+  call GetNextVarNum
+  dec d
+  ld (parsePtr),hl
+  ld h,b
+  ld l,c
+  push bc   ;Data in Grammer prg
+  push de   ;D= Str Nr; E=AA
+  call GetGrammerStr
+  pop hl
+  bit Mod2nd,(iy+InternalFlag)
+  jr z,+_
+  inc bc
+_:
+  push bc
+  ld b,h
+  ld c,l
+  ld (OP1+1),hl
+  xor a
+  ld (OP1+3),a
+  ld (OP1+1),bc
+  rst rFindSym
+  jr c,+_
+;HL = pointer to the variable's Symbol Table entry
+;DE = pointer to the variable's data structure
+;B  = 0 for Ram, or Flashpage
+;OP1=.db StrngObj,tVarStrng,tStr1,0,0; not all n�tig
+  bcall(_DelVarArc)
+_:
+  pop hl  ;length
+  push hl
+  bcall(_CreateStrng)
+  inc de
+  inc de
+  pop bc
+  pop hl
+  ldir
+  bit Mod2nd,(iy+InternalFlag)
+  ret z
+  res Mod2nd,(iy+InternalFlag)
+  dec de
+  ld a,3Fh
+  ld (de),a
+  ret
+StoDisp:
+  ld (parsePtr),hl
+  ld h,c
+  ld l,c
+  ld a,c
+  cp 16
+  jr nc,+_
+  inc c
+  dec c
+  jr z,+_
+  ld l,%10101010
+  dec c
+  jr z,+_
+
+setgray4:
+  ld hl,%0000001011011011     ;H is 2
+_:
+  ld (graymask),hl
+  ret
+StoToken:
+  ld a,(hl)
+  inc hl
+  cp $AA \ jp z,StoString
+  cp $DC \ jp z,StoInput
+  cp $DE \ jr z,StoDisp
+  cp $01 \ jp z,StoModule
+  cp $3A \ jr z,StoFloat
+  cp $2C \ jr nz,NotOSVar
+;Save Grammer's Ans
+  push bc
+
+;Make sure it is a valid name
+  ld a,(hl)
+  cp 72h    ;Ans
+  jr z,+_
+  cp 'A'
+  jp c,ErrBadTOken
+  cp 'Z'+2
+  jp nc,ErrBadTOken
+_:
+
+;It is valid, so update parsePtr
+  inc hl
+  ld (parsePtr),hl
+
+;Now write the name to OP1
+
+  ld (OP1+1),a
+  ld hl,0
+  ld (OP1+2),hl
+
+;Convert BC to a float in OP2
+  ld h,b
+  ld l,c
+  bcall(_SetXXXXOP2)
+
+;Find the var
+  rst rFindSym
+  jr c,create_OS_real
+
+;If it is a non-real, delete it and create it as a real var
+  and $1F
+  jr nz,delete_create_OS_real
+
+;If it is archived, just delete it and start anew
+  or b
+  jr z,sto_real
+delete_create_OS_real:
+  bcall(_DelVarArc)
+create_OS_real:
+  bcall(_CreateReal)
+
+sto_real:
+;Copy OP2 to the number
+  ld hl,OP2
+  call mov9
+
+;restore Grammer's Ans
+  pop bc
+  ret
+
+NotAVar:
+  ld (parsePtr),hl
+  ret
+StoFloat:
+  ld a,(hl)
+  call VarP
+  jr nc,NotAVar
+  ld (parsePtr),de
+  ld e,(hl)
+  inc hl
+  ld d,(hl)
+  ld h,b
+  ld l,c
+  jp mov4_page0
+NotOSVar:
+  call VarP
+  jr nc,NotAVar
+
+  push hl
+  push bc
+  ld bc,stack_base
+  or a
+  sbc hl,bc
+  add hl,bc
+  pop bc
+  jr nz,+_
+  ld (stack_ptr),bc
+_:
+  ld a,(de)
+  ex de,hl
+  inc hl
+  call VarP
+  jr c,+_
+  dec hl
+  ex de,hl \ pop hl
+_:
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  ld (parsePtr),de
+  ret nc
+  pop hl
+  ld de,(ThetaPrimeVar)
+  ld (hl),e
+  inc hl
+  ld (hl),d
+  ret
+StoModule:
+  inc hl
+  ld (parsePtr),hl
+  ld hl,module_count
+  ld a,(hl)
+  cp 5
+  jp nc,ErrPkgNotFound
+;now should verify the module
+
+  inc (hl)
+  adc a,a
+  add a,l
+  ld l,a
+  ld (hl),c
+  inc hl
+  ld (hl),b
+
+;Check if BC points to the name of a valid module.
+  call GetVarName_BC
+  call GetVarInfo_
+  jp c,module_not_found
+  call GetVarInfoVarFound
+
+  push hl
+  ld hl,verify_package
+  ld (next_page_call_address),hl
+  pop hl
+  call next_page_call
+  ret nc
+  jp module_not_found
+
+StoInput:
+  ld a,(hl)
+  cp $AE
+  jr z,sto_input_size
+  ld (parsePtr),hl
+  ld (input_base),bc
+  ret
+sto_input_size:
+  inc hl
+  ld (parsePtr),hl
+  ld (input_size),bc
+  ret
+Return:
+  call EndOfLine
+  ld c,l
+  ld b,h
+  ret
+
+GotoToken:
+  push bc
+  call ParseFullArg
+  ld (parsePtr),bc
+  pop bc
+  ret
+DispGraph:
+  ld a,(hl)
+  call EndOArg
+  call nz,isop
+  jp z,GraphToLCD
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  ld ixh,b
+  ld ixl,c
+  jp BufferToLCD
+EndOArg:
+  cp 4 \ ret z  ;->
+EndOArgNotSto:
+  cp 2Bh \ ret z ;,
+EndOfLine_newcol:
+  cp 3Fh \ ret z ;NL
+;  cp 3Ah \ ret z
+  cp 3Eh \ ret z ;:
+  or a
+  ret
+isop:
+  cp $82  ;*
+  ret z
+  cp $83  ;/
+  ret z
+  cp $95  ; nCr
+  cp 1    ;>Frac
+  ret z
+  cp 2    ;>Dec
+  ret z
+  cp $6A
+  ret c
+  cp $72
+  jr nc,+_
+  cp a
+  ret
+_:
+  or a
+  ret
+;===============================================================
+FindEndToken:
+;===============================================================
+;Input:
+;     HL is an address
+;Outputs:
+;     HL points to the byte after the proper End token
+;===============================================================
+  ld b,0
+SearchEnd_inc:
+  inc b
+SearchEndLoop:
+  inc hl
+  ld a,(hl)
+; Make sure it isn't >Nom(
+  cp $BB
+  jr nz,+_
+  inc hl
+  ld a,(hl)
+  cp 5
+  jr z,SearchEnd_inc
+  jr SearchEndLoop
+_:
+  call Is_2_Byte
+  jr nz,+_
+  inc hl
+  jr SearchEndLoop
+_:
+  ld a,(hl)
+  sub $CF                  ;Then
+  jr c,SearchEndLoop       ;**Just to save time
+  jr z,SearchEnd_inc
+  dec a
+  dec a \ jr z,SearchEnd_inc   ;While
+  dec a \ jr z,SearchEnd_inc   ;Repeat
+  dec a \ jr z,SearchEnd_inc   ;For
+  dec a \ jr nz,SearchEndLoop ;End
+  djnz SearchEndLoop
+  inc hl
+  ret
+FindElseEnd:
+;Input:
+;     HL is an address
+;Outputs:
+;     HL points to the byte after the proper Else or End token
+;     A is the last token checked
+  ld b,0
+FindElseEnd_:
+  inc b
+FindElseEndLoop:
+  inc hl
+  ld a,(hl)
+; Make sure it isn't >Nom(
+  cp $BB
+  jr nz,+_
+  inc hl
+  ld a,(hl)
+  cp 5
+  jr z,FindElseEnd_
+  jr FindElseEndLoop
+_:
+  call Is_2_Byte
+  jr nz,+_
+  inc hl
+  jr FindElseEndLoop
+_:
+  ld a,(hl)
+  sub $CF           ;Then
+  jr c,FindElseEndLoop
+  jr z,FindElseEnd_ ;Then
+  dec a \ jr z,check_else
+  dec a \ jr z,FindElseEnd_   ;While
+  dec a \ jr z,FindElseEnd_   ;Repeat
+  dec a \ jr z,FindElseEnd_   ;For
+  dec a \ jr nz,FindElseEndLoop
+_:
+  djnz FindElseEndLoop
+  ld a,(hl)
+  inc hl
+  ret
+
+check_else:
+;If this isn't THE `Else`, then we don't want to decrement the counter
+  djnz FindElseEnd_
+  ld a,(hl)
+  inc hl
+  ret
+
+;===============================================================
+GetGrammerText:
+;===============================================================
+;Input:
+;    HL points to the start of the string
+;Outputs:
+;     A is the value of the ending byte of the string
+;    BC is the size of the string
+;    DE points to the start of the converted string
+;    HL points to the ending byte of the string
+;     z flag is set
+;===============================================================
+  ld de,saveSScreen
+GetGrammerText_DE:
+  ld bc,0
+  push de
+TextConvert:
+  ld a,(hl)
+  cp 4   ;->
+  jr z,TextConvertEnd
+  cp 3Fh    ;newline
+  jr z,TextConvertEnd
+  cp 2Ah  ;"
+  jr z,TextConvertEnd
+  call TokToASCII+3
+  jp TextConvert
+  ld de,OP3
+TokToASCII:
+;Inputs:
+;     HL points to the token
+;     DE points to where the token should get converted to
+;Outputs:
+;     HL is incremented
+;     DE points to the byte after the string
+;     BC is the size of the string
+  ld bc,0
+  push hl
+  push bc
+  push de
+  bcall(_Get_Tok_Strng)
+  pop de
+  pop hl
+  add hl,bc
+  push hl
+  ld hl,OP3
+  ldir
+  pop bc
+  pop hl
+  ld a,(hl)
+  call Is_2_Byte
+  inc hl
+  ret nz
+  inc hl
+  ret
+TextConvertEnd:
+  inc hl
+  pop de
+  ret
+;===============================================================
+GetGrammerStr:
+;===============================================================
+;Input:
+;    HL points to the start of the string
+;Outputs:
+;     A is the value of the ending byte of the string
+;    BC is the size of the string
+;    HL points to the ending byte of the string
+;     z flag is set
+;===============================================================
+  ld bc,-1
+;  inc hl
+_:
+  ld a,(hl)
+  inc bc
+  or a \ ret z
+  cp 4 \ ret z
+  cp 3Fh \ ret z
+  inc hl
+  cp 2Ah \ jr nz,-_
+  ret
+VarP:
+  cp $AF    ;? token
+  jr nz,VarPointer
+  ex de,hl
+  scf
+  ld hl,qmarkVar
+  ret
+;===============================================================
+VarPointer:
+;===============================================================
+;Inputs:
+;     A is the var to return the pointer of
+;     hl points to the next byte
+;Outputs:
+;     A is the lower 8-bits of the pointer
+;     BC is not affected
+;     DE should be used to update (parsePtr)
+;     HL points to the var data
+;     c flag is reset if A was not a var token
+  cp $BB
+  jr nz,NotBBvar
+  ld d,h
+  ld e,l
+  ld a,(hl)
+  cp $4B     ;Pmt_End
+  jr z,Pmt_End_ptr
+  cp $4C     ;Pmt_Bgn
+  jr z,Pmt_Bgn_ptr
+  sub 203
+  ret nc
+  sub -16
+  adc a,10
+  cp 26
+  ret nc
+  add a,a
+  ld hl,pvars+54
+  add a,l
+  ld l,a
+#if (pvars+54)&255>=204
+  jr nc,+_
+  inc h
+_:
+#endif
+  inc de
+  scf
+  ret
+Pmt_End_ptr:
+  ld hl,stack_top
+  inc de
+  scf
+  ret
+Pmt_Bgn_ptr:
+  ld hl,stack_base
+  inc de
+  scf
+  ret
+NotBBVar:
+  cp 'A'
+  ccf
+  ret nc
+  cp 'Z'+2
+  ret nc
+  sub 'A'
+  rlca
+  ld d,pvars>>8
+  ld e,a
+  ld a,(hl)
+  cp $AE
+  jr nz,+_
+  ld a,54
+  add a,e
+  ld e,a
+  inc hl
+_:
+  ld a,e
+  add a,pvars&255
+  ld e,a
+#if pvars&255>=202
+  jr nc,+_
+  inc d
+_:
+#endif
+  ex de,hl
+  scf
+  ret
+;===============================================================
+EndOfLine:
+;===============================================================
+;Input:
+;     HL is a pointer
+;Output:
+;     HL points to the next line
+;===============================================================
+  ld a,3Fh
+  push bc
+  ld bc,0
+  cpir
+  pop bc
+  ret
+;===============================================================
+IsHexTok:
+;===============================================================
+;Input:
+;     DE points to the byte
+;Output:
+;     DE is incremented by 1
+;      A is the hex value if A is a hex token
+;     nc if A is a hex token
+;      c if A is not a hex token
+;===============================================================
+  ld a,(de)
+  inc de
+  cp 47h
+  ccf
+  ret c
+  cp 'A'
+  jr nc,+_
+  cp 3Ah
+  ccf
+  ret c
+  .db $DA ;start of jp c,**
+_:
+  sub 7
+  sub 30h
+  ret
+;===============================================================
+ConvRStr:
+;===============================================================
+;Input:
+;     DE points to the base 10 number string in RAM.
+;Outputs:
+;     HL is the 16-bit value of the number
+;     DE points to the byte after the number
+;     BC is HL/10
+;     z flag reset (nz)
+;     c flag reset (nc)
+;Destroys:
+;     A (actually, add 30h and you get the ending token)
+;Size:  41 bytes
+;Speed: 134+(106+{0,9})n
+;       n is the number of digits
+;       c is at most n-2
+;       at most 691 cycles for any 16-bit decimal value
+;===============================================================
+  dec hl
+  bit baseInput,(iy+UserFlags)
+  jp nz,ConvHexStr
+
+  bit floatmode,(iy+ModeFlags2)
+  jr nz,ConvRStr_Float
+
+  ex de,hl
+  ld hl,0
+  push de   ;save in case we encounter a float
+_:
+  ld a,(de)
+  sub 30h
+  cp 10
+  jr nc,+_
+  inc de
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add a,l
+  ld l,a
+  jr nc,-_
+  inc h
+  jp -_
+_:
+  jr z,+_   ;means it was a decimal point
+  pop bc
+  ld (parsePtr),de
+  ld b,h
+  ld c,l
+  ret
+_:
+  pop hl
+
+ConvRStr_Float:
+  ;HL points to the string
+  dec hl
+  ld a,(hl)
+  cp $B0     ;neg sign token
+  jr nz,+_
+  ;Need to pop off the return address; not returning to the neg routine
+  pop de
+  pop de
+  .db $FE   ;start of cp *, causes the inc hl to be ignored
+_:
+  inc hl
+  ;HL points to the float
+  push hl
+  call floatstackpush
+  ld b,h
+  ld c,l
+  ld hl,str2single
+  ld (next_page_call_address),hl
+  pop hl
+  call next_page_call
+  ld hl,(ptr_sto)
+  ld (parsePtr),hl
+  ret
+SetMem:
+  ld (hl),a
+  ld d,h
+  ld e,l
+  cpi
+  ret po
+  ex de,hl
+  ldir
+  ret
+;===============================================================
+Is_2_Byte:
+;===============================================================
+  cp $EF \ ret z
+  cp $BB \ ret z
+  cp $7E \ ret z
+Is_Var_Name:
+  sub $AA \ ret z     ;AA
+  add a,$47 \ ret z   ;63
+  inc a \ ret z
+  inc a \ ret z
+  inc a \ ret z
+  add a,2 \ ret z
+  inc a \ ret z
+  inc a \ ret
+ConvHexTo86ECh:
+;max: 174n+91
+;min: 128n+56
+;avg: 145.25x+79    (typical avg, assuming most end in newline)
+;An 8x8 sprite is now 6% faster on avg. than versions <2.50
+  ld d,b
+  ld e,c
+  ld hl,86ECh
+  ld bc,$0A30
+ConvHexLoop7:
+;  HL points to where to convert
+;  DE is where to convert from
+  ld a,(de)
+  inc de
+  sub c
+  ret c
+  cp b
+  jr c,+_
+  sub 17
+  ret c
+  cp 6
+  ret nc
+  add a,b
+_:
+  rld
+  ld a,(de)
+  inc de
+  sub c
+  ret c
+  cp b
+  jr c,+_
+  sub 17
+  ret c
+  cp 6
+  ret nc
+  add a,b
+_:
+  rld
+  inc hl
+  jp ConvHexLoop7
+IsConditional:
+  cp $D8 \ ret z      ;pause
+  cp $CE \ ret z      ;if
+  cp $D1 \ ret z      ;while
+  cp $D2 \ ret        ;repeat
+EraseParticle:
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+;pixel off
+  push bc
+  call GetPixelLoc
+  pop bc
+  ret
+isStartMenu_valid:
+  ld a,(OP1+1)
+  cp $23
+  jr z,StartMenu_invalid
+  cp $21
+  jr z,StartMenu_invalid
+  ld hl,(VATPtr)
+  ld a,(hl)
+  cp 1        ;don't want lists
+  jr nz,+_
+StartMenu_invalid:
+  or a
+  ret
+_:
+  cp 13       ;don't want complex lists
+  jr z,StartMenu_invalid
+  cp 17h      ;don't want GroupVars
+  jr z,StartMenu_invalid
+
+  bit 6,(iy+UserFlags)     ;must be AppV
+  jr z,+_
+  cp 15h
+  ret nz
+_:
+;need to pull in six bytes
+#ifdef include_LoadTSA
+  call LoadReadArc
+#endif
+  ld bc,-3
+  add hl,bc
+  ld e,(hl)
+  dec hl
+  ld d,(hl)
+  dec hl
+  ld a,(hl)
+  or a
+  jr z,+_
+  ld b,a
+  dec hl
+  ld a,(hl)
+  add a,10
+  add a,e
+  ld e,a
+  ld a,b
+  jr nc,+_
+  inc d
+  jp po,+_
+  inc a
+  ld d,$40
+_:
+  ex de,hl
+  ld de,cmdShadow
+  ld bc,2
+  call ReadArc
+  ld bc,(cmdShadow)
+  ;need to save A:HL, BC
+  ld (TempWord3),a
+  ld (TempWord4),bc
+  ld (TempWord5),hl
+_:
+  ld bc,4
+  call ReadArc
+  ld hl,cmdShadow+2
+  bit OnBlockFlag,(iy+UserFlags)   ;ASM only
+  jp nz,asm_header_only
+;non-ASM and ASM alike
+  bit baseInput,(iy+UserFlags)
+  ret z   ;doesn't have any special filters
+;must be a Grammer Var
+;header is either $BB,$6D,$55,$C9 or $3A,$30,$3E
+  ld a,(hl) \ cp $BB \ jr z,+_
+  cp $3A \ ret nz
+  inc hl \ ld a,(hl) \ cp $30 \ ret nz
+  inc hl \ ld a,(hl) \ cp $3E \ ret
+_:
+  inc hl \ ld a,(hl) \ cp $6D \ ret nz
+  inc hl \ ld a,(hl) \ cp $55 \ ret nz
+  inc hl \ ld a,(hl) \ cp $C9
+  ret
+asm_header_only:
+;first two bytes must be $BB,$6D
+;
+  ld a,(hl) \ cp $BB \ ret nz
+  inc hl \ ld a,(hl) \ cp $6D \ ret nz
+  bit baseInput,(iy+UserFlags)
+  ret z
+;next two bytes must be $55,$C9
+;
+  inc hl \ ld a,(hl) \ cp $55 \ ret nz
+  inc hl \ ld a,(hl) \ cp $C9
+  ret
+
+#ifdef include_LoadTSA
+ReadArc:
+  call LoadReadArc
+  jp TSA
+#else
+ReadArc = TSA
+#endif
+ReadArcData:
+#ifdef include_loadTSA
+  .dw ReadArcEnd-ReadArc-2
+#endif
+#include "readarc.z80"
+ReadArcEnd:
+FindGVarData:
+  ld hl,GVarData
+  rst rMov9ToOP1
+  bcall(_ChkFindSym)
+  ret nc
+  ld hl,3
+  bcall(_CreateAppVar)
+  ret
+GetVarName:
+  call ParseFullArg
+GetVarName_BC:
+  ld h,b
+  ld l,c
+GetVarName_:
+  ld a,(hl)
+  and 1Fh
+  ld de,OP1
+  sub 5 \ jp z,GetGrammerText_DE
+  dec a \ jp z,GetGrammerText_DE
+  sub 15 \ jp z,GetGrammerText_DE
+  dec a \ jp z,GetGrammerText_DE
+  ld bc,3
+  ld d,h \ ld e,l
+  add hl,bc
+  cp a
+  ret
+GetVarInfo:
+;Returns name in OP1
+;A is the flashpage
+;HL points to SymEntry
+;DE points to size bytes
+;BC is the length of the name (for use when finding archived data)
+;nc if it exists
+;z if it is in RAM
+  call GetVarName
+GetVarInfo_:
+  ex de,hl
+  ld de,OP1
+  push bc
+  ldir
+  xor a
+  ld (de),a
+  bcall(_ChkFindSym)
+  ld a,b
+  pop bc
+  ret c
+  or a
+  ret
+GetvarInfo2:
+;Inputs:
+;     The next argument to parse points to the name of the var to get info about
+;Outputs:
+;     A is the ending page (start of data)
+;     BC is the size of the var
+;     DE points to the SymEntry
+;     HL points to the data
+;     c is set if the var does not exist
+#ifdef include_LoadTSA
+  call LoadReadArc
+#endif
+  call GetVarInfo
+  ret c
+GetVarInfoVarFound:
+  ex de,hl
+  or a
+  jr nz,+_
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ inc hl
+  ret
+_:
+  add hl,bc
+  ld c,9
+  add hl,bc
+  bit 7,h
+  jr z,+_
+  ld h,40h
+  inc a
+_:
+  push de
+  ld de,OP2
+  ld bc,2
+  call ReadArc
+  ld bc,(OP2)
+  pop de
+  or a
+  ret
+
+GPutSI:
+;     The string to display immediately follows the call
+;       The string is zero terminated
+;Outputs:
+;     All registers are preserved
+  ex (sp),hl
+  push de
+  push bc
+  push af
+  call GPutS
+  pop af
+  pop bc
+  pop de
+  ex (sp),hl
+  ret
+
+DrawRectToGraphI:
+  ex (sp),hl
+;  push de \ push bc \ push af
+  ld e,(hl) \ inc hl
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ inc hl
+  ld d,(hl) \ inc hl
+  ld a,(hl) \ inc hl
+  ex (sp),hl
+  jp DrawRectToGraph
+ExecLine_:
+  ld a,(hl)
+  inc hl
+  call VarP
+  ret nc
+parse_by_ptr_to_ptr:
+  push de
+  push hl
+  ld a,(hl)
+  inc hl
+  ld h,(hl)
+  ld l,a
+  call ParseNextFullArg_HL
+  ld de,(parsePtr)
+  pop hl
+  inc de
+  ld (hl),e
+  inc hl
+  ld (hl),d
+  pop hl
+  ld (parsePtr),hl
+  ret
+ExecLine:
+  call ParseFullArg
+  push bc
+  cp 2Bh
+  ld bc,(ProgStart)
+  call z,ParseNextFullArg
+  push bc
+  ld bc,32768
+  cp 2Bh
+  call z,ParseNextFullArg
+  push bc
+  cp 2Bh
+  ld bc,63
+  call z,ParseNextFullArg
+  ld a,c
+  pop bc
+  pop hl
+  pop de
+  call SearchLine_00
+  ld b,d
+  ld c,e
+  jp g_expr
+Byte:
+  ld b,0
+  ld c,(hl)
+  inc hl
+  ld (parsePtr),hl
+  ret
+Word:
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  ld (parsePtr),hl
+  ret
+NegRelPtr:
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  inc hl
+  ld (parsePtr),hl
+  ld hl,(progEnd)
+  or a
+  sbc hl,bc
+  ld b,h
+  ld c,l
+  ret
+Base2Num:
+  ld bc,0
+  ld d,b
+  ld e,c
+_:
+  ld a,(hl)
+  sub '2'
+  add a,2
+  jr nc,+_
+  rrca
+  rl c
+  rl b
+  rl e
+  rl d
+  inc hl
+  jp -_      ;It saves 2 cycles using JP D:
+_:
+  set FactorialFlag,(iy+InternalFlag)
+  ld (parsePtr),hl
+  ret
+_:
+  ld hl,lnSingle
+  jp float_stepin_1
+LnToken:
+  ld a,(hl)
+  cp 3Ah
+  jr z,-_
+  cp $B0
+  push bc
+  jr z,JumpBack
+  call ParseFullArg
+  dec bc
+  inc b
+  inc c
+  ld d,b \ ld e,c
+  ld bc,0
+_:
+  ld a,3Fh
+  cpir
+  dec e
+  jr nz,-_
+  dec d
+  jr nz,-_
+  ld (parsePtr),hl
+  pop bc
+  ret
+JumpBack:
+  call ParseNextFullArg
+  inc b
+  inc c
+  ld d,b \ ld e,c
+  dec hl
+  ld bc,0
+_:
+  ld a,3Fh
+  cpdr
+  dec e
+  jr nz,-_
+  dec d
+  jr nz,-_
+  ld (parsePtr),hl
+  pop bc
+  ret
+cmdJmp:
+#ifdef ALIGN_COMMAND_TABLE
+  ld h,CommandJumpTable>>8
+  add a,a
+  jr nc,+_
+  inc h
+_:
+  ld l,a
+#else
+  ld hl,CommandJumpTable
+  add a,a
+  jr nc,+_
+  inc h
+_:
+  add a,l
+  ld l,a
+  jr nc,+_
+  inc h
+_:
+#endif
+  ld a,(hl)
+  inc hl
+  ld h,(hl)
+  ld l,a
+  push hl
+  ld hl,(parsePtr)
+  ret
+menu:
+  ld hl,menu_code_start
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+
+pushvars_00:
+  ld de,pushvars
+  ld (next_page_call_address),de
+  jp next_page_call
+
+FracToken_00:
+  ld de,FracToken
+  ld (next_page_call_address),de
+  jp next_page_call
+
+ParamToken_00:
+  ld de,ParamToken
+  ld (next_page_call_address),de
+  jp next_page_call
+
+LblToken:
+  ld hl,LblToken_01
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+FS_createvar_max:
+  push hl
+  ld hl,FS_createvar_max_01
+  jr jp_next_page_call
+
+FS_delvar:
+  push hl
+  ld hl,FS_delvar_01
+  jr jp_next_page_call
+
+FS_resize:
+  push hl
+  ld hl,FS_resize_01
+  jr jp_next_page_call
+
+FS_findvar:
+  push hl
+  ld hl,FS_findvar_01
+  jr jp_next_page_call
+
+SearchString:
+  push hl
+  ld hl,searchstring_routine
+  jr jp_next_page_call
+
+SearchLine_00:
+  push hl
+  ld hl,SearchLine
+  jr jp_next_page_call
+
+DrawRectToGraph:
+  push hl
+  ld hl,drawrect
+jp_next_page_call:
+  ld (next_page_call_address),hl
+  pop hl
+  jp next_page_call
+
+DegreeToken:
+  call ParseFullArg
+  ld (gbuf_temp),bc
+  inc hl
+  jp ParseArg2
+
+todectoken:
+;Takes a pointer to a string and converts it to a float
+  ld hl,str2single
+  ld (next_page_call_address),hl
+  push bc
+  call floatstackpush
+  ld b,h
+  ld c,l
+  pop hl
+  jp next_page_call
+InputToken:
+  ld de,s_null
+  ld a,(hl)
+  call EndOArg
+  call nz,isop
+  jr z,+_
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  ld de,OP1
+  call GetGrammerText_DE
+  ld h,b
+  ld l,c
+  add hl,de
+  ld (hl),0
+_:
+  ld hl,input
+  ld (next_page_call_address),hl
+  call next_page_call
+  ld b,h
+  ld c,l
+  ret
+
+GraphToLCD:
+  ld hl,GraphToLCD_
+  ld (next_page_call_address),hl
+  jp next_page_call
+
+BufferToLCD:
+  ld ix,BufferToLCD_
+  ld (next_page_call_address),ix
+  jp next_page_call
+
+#include "main.z80"
+#include "module.z80"
+#include "ramcode.z80"
+#include "routines.z80"
+#include "SetUpData.z80"
+#include "parserhook.z80"
+#include "cmd/particle.z80"
+#ifdef include_LoadTSA
+#include "cmd/loadtsa.z80"
+#endif
+#include "gfx/text.z80"
+#include "gfx/getpixelloc_nobound.z80"
+#include "gfx/GetPixelLoc.z80"
+#include "gfx/TileMap1.z80"
+#include "math/mul16.z80"
+#include "math/HL_Div_C.z80"
+#include "math/DEHL_Div_C.z80"
+#include "math/HL_Div_BC.z80"
+#include "subroutines/getbyte.z80"
+#include "grammerdata.z80"
+#include "math.z80"
+#include "subroutines/chardim.z80"
+#include "subroutines/ConvOP1.z80"
+#include "parserinterrupt.z80"
+#include "err.z80"
+#include "commandtable.z80"
+
+.echo "Page 0: ",$8000-$," bytes remaining"
+
+#if $>$8000
+.error "ERR!! Page 1 is over by ",$-$8000," bytes!"
+#else
+.fill $8000-$,255
+#endif
+#include "01.z80"
+
+
+.echo "RamCode : ",RamCodeEnd-RamCodeStart

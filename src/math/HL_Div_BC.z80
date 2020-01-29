@@ -1,0 +1,56 @@
+;===============================================================
+HL_Div_BC:
+;===============================================================
+;Performs HL/BC
+;Speed:   1182cc (+6cc for every 0bit in the result)
+;Size:    29 bytes
+;Inputs:
+;     DE is the numerator
+;     BC is the denominator
+;Outputs:
+;     HL is the quotient
+;     DE is the remainder
+;     BC is not changed
+;     z flag is set
+;     c flag is reset
+;===============================================================
+  ex de,hl
+;===============================================================
+DE_Div_BC:
+;===============================================================
+;Performs DE/BC
+;Speed:   1178cc (+6cc for every 0bit in the result)
+;Size:    28 bytes
+;Inputs:
+;     HL is the numerator
+;     BC is the denominator
+;Outputs:
+;     HL is the quotient
+;     DE is the remainder
+;     BC is not changed
+;     z flag is set
+;     c flag is reset
+;===============================================================
+  ld hl,0
+DE_Div_BC_continue:
+  ld a,e
+  ld e,16
+Div16Loop:
+  rla
+  rl d
+  adc hl,hl
+  sbc hl,bc
+  jr nc,+_
+  add hl,bc
+_:
+  dec e
+  jr nz,Div16Loop
+  rla
+  cpl
+  ld e,a
+  ld a,d
+  rla
+  cpl
+  ld d,a
+  ex de,hl
+  ret

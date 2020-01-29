@@ -1,0 +1,16 @@
+DEHL_Div_BC_special:
+;DEHL/BC ==> DEHL
+;Given that it should error if DE is non-zero and remainder is guaranteed 0.
+
+;First, if DE>=BC, then the output will exceed 16 bits, so we should error
+  ex de,hl
+  xor a
+  sbc hl,bc
+  jr c,+_
+  ld de,-1
+  ret
+_:
+  add hl,bc
+
+;Now enter into a normal DE/BC
+  jp DE_Div_BC_continue

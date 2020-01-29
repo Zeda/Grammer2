@@ -1,0 +1,26 @@
+SearchLine:
+;Inputs:
+;     HL points to the start
+;     BC is the number of bytes to search
+;     DE is the line number
+;     A is the line byte
+;Outputs:
+;     A is not changed
+;     BC is the number of bytes left for the search
+;     DE points to the line
+;     HL is the length of the line
+;===============================================================
+  inc bc
+  dec de \ inc d \ inc e
+;  or a
+_:
+  ld (TempWord1),hl
+  cpir
+  jp po,+_
+  dec e \ jr nz,-_
+  dec d \ jr nz,-_
+_:
+  scf
+  ld de,(TempWord1)
+  sbc hl,de
+  ret

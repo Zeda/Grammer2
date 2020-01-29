@@ -1,0 +1,53 @@
+NoteLoop:
+;If the CPU is exactly 6MHz, then we are .000004666... seconds short for every .950272 seconds.
+  dec de
+NoteLoop_begin:
+  push de
+  call freqout
+  pop de
+  ld a,d
+  or e
+  dec hl
+  jr nz,NoteLoop
+  ret
+freqout:
+;HL*87-11cc
+  ld d,b
+  ld e,c
+  jr freqoutEntry
+freqoutLoop:
+;add 46cc
+  ex (sp),hl
+  ex (sp),hl
+  nop
+  nop
+freqoutLoop1:
+  ld a,h
+  or l
+  jr z,+_
+  cpd
+  jp pe,freqoutLoop
+freqoutEntry:
+  in a,(0)
+  scf
+_:
+
+  ld b,d
+  ld c,e
+  out (0),a
+  jr c,freqoutLoop
+  ret
+
+;HL points to the data:
+;DE is the time
+;BC is the number of elements
+SoundLoop:
+  push de \ push bc
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ push hl
+  ex de,hl
+  call freqout
+  pop hl \ pop bc \ pop de
+  cpi
+  jp pe,SoundLoop
+  ret

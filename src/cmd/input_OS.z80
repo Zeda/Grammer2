@@ -1,0 +1,16 @@
+;From Axe
+p_Input:
+ res 6,(iy+$1C)
+ set 7,(iy+$09)
+ xor a
+ ld (ioPrompt),a
+ B_CALL(_GetStringInput)
+ B_CALL(_ZeroOP1)
+ ld a,$2D
+ ld (OP1+1),a
+ rst rFindSym
+ inc de
+ inc de
+ ex de,hl
+ ret
+__InputEnd:

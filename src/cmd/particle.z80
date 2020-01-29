@@ -1,0 +1,417 @@
+PToRy:
+  call ParseFullArg
+  cp 2Bh
+  ld (PBufType),bc
+  ld bc,%01100001
+  jr nz,GetRuleNum+3
+  inc hl
+  ld a,(hl)
+  sub 2Ah
+  jr nz,GetRuleNum
+  ld b,h
+  ld c,l
+  ld h,a
+  ld l,a
+ConvRuleLoop:
+  inc bc
+  ld a,(bc)
+  call EndOArg
+  jr nz,more_rules
+  cp 2Bh
+  jr z,more_rule_args
+_:
+  ld a,h \ and $F0
+  jr nz,+_
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  jr -_
+_:
+  ld (PBufRule),hl
+  ret
+more_rule_args:
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,hl
+more_rules:
+  cp 'U'
+  jr nz,+_
+  set 3,l
+_:
+  cp 'R'
+  jr nz,+_
+  set 2,l
+_:
+  cp 'L'
+  jr nz,+_
+  set 1,l
+_:
+  cp 'D'
+  jr nz,ConvRuleLoop
+  set 0,l
+  jr ConvRuleLoop
+GetRuleNum:
+  call ParseNextFullArg
+  ld a,b
+  rlca \ rlca \ rlca \ rlca
+  ld (PBufRule),a
+  ld a,c
+  rlca \ rlca \ rlca \ rlca
+  ld (PBufRule+1),a
+  ret
+RToPr:
+  ld hl,(PBufPtr)
+  inc hl \ inc hl
+  ld (hl),0 \ inc hl
+  ld (hl),0 \ inc hl
+  ret
+
+;===============================================================
+RToPTheta:
+;===============================================================
+;This executes one particle cycle
+;===============================================================
+  ld a,(hl)
+  call EndOArg
+  jr z,DefaultBuffer
+  call ParseFullArg
+  push bc
+  cp $2b
+  call ParseNextFullArg_Buffer
+  pop bc
+g_ParticleCycle:
+  ld (PBufPtr),bc
+DefaultBuffer:
+  ld hl,(PBufPtr)
+  ld a,(PBufType)
+  ld de,(PBufRule)
+  or a
+  jr nz,+_
+  ld de,%0001011000000000
+_:
+  dec a
+  jr nz,+_
+  ld de,%0001011010000000
+_:
+  ld (TempWord1),de
+;RuleSet=DE
+  inc hl
+  inc hl
+  ld (TempWord4),hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  ld a,b
+  or c
+  ret z
+  inc hl
+;BC now is the number of particles
+;HL now points to the particles
+;(TempWord1) is the ruleset
+  ld (TempWord2),bc
+  add hl,bc
+  add hl,bc
+  dec hl
+  ld (TempWord3),hl
+  inc hl
+  sbc hl,bc
+  sbc hl,bc
+;TempWord2 contains the number of particles left in the buffer
+;TempWord3 points to the last particle
+;TempWord4 points to the particle size bytes
+ParticleDrawLoop:
+  push bc
+  push hl
+  call EraseParticle
+  push hl
+  pop ix
+  ld hl,(TempWord1)
+  push af
+  ld a,(flags+ParticleFlag)
+  and %11100000
+  ld (flags+ParticleFlag),a
+  ld a,b
+  or a
+  jr nz,PLeft
+  set Xis0,(iy+ParticleFlag)
+  jr PUpDown
+PLeft:
+  sub 95
+  jr c,PUpDown
+  set Xis95,(iy+ParticleFlag)
+PUpDown:
+  ld a,c
+  or a
+  jr nz,PDown
+  set Yis0,(iy+ParticleFlag)
+  jr PPPp
+PDown:
+  sub 63
+  jr c,PPPp
+  set Yis63,(iy+ParticleFlag)
+PPPp:
+  pop bc
+  ld c,0
+ParticleTestLoop:
+  add hl,hl
+  jr nc,CheckPRight
+  ld a,b
+  and (ix-12)
+  jr nz,CheckPRight
+  ld c,8
+  bit Yis0,(iy+ParticleFlag)
+  jr z,CheckPRight
+  set OffScrn,(iy+ParticleFlag)
+CheckPRight:
+  add hl,hl
+  jr nc,CheckPLeft
+  ld a,b
+  rrca
+  jr c,$+7
+  and (ix)
+  jr +_
+  and (ix+1)
+_:
+  jr nz,CheckPLeft
+  ld a,c
+  or a
+  jr z,$+8
+  ld a,r
+  bit 4,a
+  jr nz,+_
+  ld c,4
+_:
+  bit Xis95,(iy+ParticleFlag)
+  jr z,CheckPLeft
+  set OffScrn,(iy+ParticleFlag)
+CheckPLeft:
+  add hl,hl
+  jr nc,CheckPDown
+  ld a,b
+  rlca
+  jr c,$+7
+  and (ix)
+  jr +_
+  and (ix-1)
+_:
+  jr nz,CheckPDown
+  ld a,c
+  or a
+  jr z,$+8
+  ld a,r
+  bit 4,a
+  jr nz,+_
+  ld c,2
+_:
+  bit Xis0,(iy+ParticleFlag)
+  jr z,CheckPDown
+  set OffScrn,(iy+ParticleFlag)
+CheckPDown:
+  add hl,hl
+  jr nc,PChecked
+  ld a,b
+  and (ix+12)
+  jr nz,PChecked
+  ld a,c
+  or a
+  jr z,$+8
+  ld a,r
+  bit 4,a
+  jr nz,+_
+  ld c,1
+_:
+  bit Yis63,(iy+ParticleFlag)
+  jr z,PChecked
+  set OffScrn,(iy+ParticleFlag)
+PChecked:
+  ld a,c
+  or a
+  jr nz,MoveP
+  ld a,h
+  or l
+  jp nz,ParticleTestLoop
+MoveP:
+  pop hl
+  ld a,c
+  or a
+  jr z,MovedP
+  ld a,b
+  cpl
+  and (ix)
+  ld (ix),a
+  bit OffScrn,(iy+ParticleFlag)
+  jr nz,RemoveParticle
+  ld a,b
+  rrc c
+  jr nc,+_
+  or (ix+12)
+  ld (ix+12),a
+  inc (hl)
+  jr MovedP
+_:
+  rrc c
+  jr nc,$+23
+  rlca
+  jr nc,$+10
+  or (ix-1)
+  ld (ix-1),a
+  jr $+8
+  or (ix)
+  ld (ix),a
+  inc hl
+  dec (hl)
+  jr MovedP+1
+  rrc c
+  jr nc,$+23
+  rrca
+  jr nc,$+10
+  or (ix+1)
+  ld (ix+1),a
+  jr +_
+  or (ix)
+  ld (ix),a
+_:
+  inc hl
+  inc (hl)
+  jr MovedP+1
+  or (ix-12)
+  ld (ix-12),a
+  dec (hl)
+MovedP:
+  inc hl
+  pop bc
+  cpi
+  jp pe,ParticleDrawLoop
+  ret
+RemoveParticle:
+;HL points to particle data
+;TempWord2 contains the number of particles left in the buffer
+;TempWord3 points to the last particle
+;TempWord4 points to the particle size bytes
+  res OffScrn,(iy+ParticleFlag)
+  ld bc,(TempWord2)
+  cpi
+  ex de,hl
+  push af
+  ld hl,(TempWord3)
+  ld (TempWord2),bc
+  ldd
+  ldd
+  ld (TempWord3),hl
+  ld hl,(TempWord4)
+  inc bc
+  inc bc
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  ex de,hl
+  pop af
+  pop bc
+  ret po
+  cpi
+  jp pe,ParticleDrawLoop
+  ret
+;===============================================================
+PBufInfoDef:
+  ld hl,(PBufPtr)
+PBufInfo:
+  ld c,(hl) \ inc hl
+  ld b,(hl) \ inc hl
+  ld e,(hl) \ inc hl
+  ld d,(hl) \ inc hl
+  ret
+NextParticle:
+  sra b \ rr c \ dec bc
+  ex de,hl
+  sbc hl,bc \ ret z
+  add hl,bc
+  inc hl
+  ex de,hl
+  ld (TempWord1),hl
+  dec hl \ ld (hl),d
+  dec hl \ ld (hl),e
+  ex de,hl
+  add hl,hl
+  add hl,de
+  or 1
+  ret
+PartConv:
+; jr $
+  push bc
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+  ld a,c
+  pop bc \ ld b,a
+  push bc
+  call ParseNextFullArg
+  push bc
+  call ParseNextFullArg
+
+  cp $2b
+
+  ld a,c
+
+  push af
+  call ParseNextFullArg_Buffer
+  pop af
+
+  pop bc \ ld b,a
+  pop hl \ ld (TempWord3),hl
+  add hl,bc \ dec h \ dec l
+  ld (TempWord2),bc
+;HL contains the lower-left coordinates
+PartConvLoop:
+  push hl
+  push bc
+  ld (TempWord4),hl
+  ld b,h \ ld c,l
+  call GetPixelLoc
+  jr nc,FinishPartAdd
+  and (hl) \ jr z,FinishPartAdd
+  call PBufInfoDef
+  call NextParticle \ jr z,PConvComplete
+  ld bc,(TempWord4)
+  ld (hl),c \ inc hl \ ld (hl),b
+FinishPartAdd:
+  pop bc \ pop hl
+;TempWord2 is the size of the reqion
+;TempWord3 is is the upper right coordinate
+  dec h \ djnz PartConvLoop
+  ld hl,(TempWord3)
+  ld bc,(TempWord2) \ dec c
+  add hl,bc
+  jr nz,PartConvLoop-6
+  pop bc \ ret
+PConvComplete:
+  pop bc \ pop hl \ pop bc \ ret ;zuviel
+FillPart:
+  ret
+PToRX:
+  ld a,(hl) \ cp $AE
+  jr z,PartConv
+  cp 11 \ jr z,FillPart
+  call PBufInfoDef
+;BC=Max number of particles
+;DE=Current number of particles
+;HL=particle pointer
+  call NextParticle
+  ld de,(TempWord1)
+  push de
+  push hl
+;HL points to where particle data gets written
+  call ParseFullArg
+  push bc
+  call ParseNextFullArg
+  ld a,c
+  pop bc \ ld b,a
+  pop hl \ pop de
+AddParticle:
+  ld (hl),c \ inc hl
+  ld (hl),b
+  call GetPixelLoc
+  or (hl) \ ld (hl),a
+  ld b,d \ ld c,e
+  ret

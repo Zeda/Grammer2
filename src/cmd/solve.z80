@@ -1,0 +1,196 @@
+solveset_p1:
+  add a,4
+  add a,a
+  cp solveset_LUT_end-solveset_LUT
+  jp nc,p1_err_syntax
+  ld hl,solveset_LUT
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+  ld a,(hl)
+  inc hl
+  ld h,(hl)
+  ld l,a
+  jp (hl)
+
+solveset_LUT:
+  .dw CopyVar
+  .dw CopyDataUp
+  .dw CopyDataDown
+  .dw p1_err_fatal
+  .dw p1_err_fatal
+  .dw PortWrite
+  .dw PortRead
+  .dw CopyVars
+  .dw OverwriteVar
+  .dw solve_zlz_comp
+  .dw solve_zlz_decomp
+  .dw solve_zcomp
+  .dw solve_sortVAT
+  .dw solve_getname
+solveset_LUT_end:
+
+CopyVar:
+  call p1_GetVarInfo2
+  ret c
+  push af
+  push hl
+  push bc
+  ld hl,(parsePtr)
+  inc hl
+  ld (parsePtr),hl
+  call p1_GetVarInfo
+  jr c,+_
+  bcall(_DelVarArc)
+_:
+  ld hl,(parsePtr)
+  ld a,2Bh
+  cp (hl)
+  pop bc
+  call z,p1_ParseNextFullArg
+  push bc
+  ld bc,0
+  cp 2Bh
+  call z,p1_ParseNextFullArg
+  pop de
+  pop hl
+  add hl,bc
+  push hl
+  push de
+  ex de,hl
+  ld a,(OP1)
+  and $1F
+  bcall(_EnoughMem)
+  jp c,ErrMEM
+  ex de,hl
+  bcall(_CreateVar)
+  inc de
+  inc de
+  pop bc
+  pop hl
+  pop af
+  push de
+  push bc
+  call ReadArc
+  pop hl
+  ld (ThetaPrimeVar),hl
+  pop bc
+  ret
+
+
+CopyDataUp:
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+  pop hl
+  ldir
+  pop bc
+  ret
+
+CopyDataDown:
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+  pop hl
+  lddr
+  pop bc
+  ret
+
+
+PortWrite:
+  call p1_ParseNextFullArg
+  push bc
+  ld c,0
+  cp 2Bh
+  call z,p1_ParseNextFullArg
+  pop de
+  out (c),e
+  ret
+
+PortRead:
+  ld hl,(parsePtr)
+  ld a,(hl)
+  ld c,0
+  cp 2Bh
+  call z,p1_ParseNextFullArg
+  in c,(c)
+  ld b,0
+  ret
+
+CopyVars:
+;Copy variables to a new location
+  call p1_ParseNextFullArg
+  ld d,b
+  ld e,c
+  ld hl,smallEditRAM
+  jr mov108
+
+OverwriteVar:
+;Overwrite all pointer vars
+  call p1_ParseNextFullArg
+  ld h,b
+  ld l,c
+  ld de,smallEditRAM
+mov108:
+  ld bc,108    ;2*54, 4*(26+1)
+  ldir
+  ret
+
+solve_sortVAT = sortVAT
+
+solve_getname:
+  call p1_ParseNextFullArg
+  cp $2B
+  jr z,solve_getname_any_type
+  ld a,c    ;type
+  push af
+  call p1_ParseNextFullArg
+  pop af
+  ;A is the type, BC is the index
+
+
+  ret
+
+solve_getname_any_type:
+;BC is the index
+  ret
+
+solve_zlz_decomp:
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+  pop hl
+  jp zlz_decomp
+
+solve_zlz_comp:
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+  pop hl
+  jp zlz_comp
+
+
+solve_zcomp:
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+  pop hl
+  jp zcomp

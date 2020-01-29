@@ -1,0 +1,441 @@
+;Issues:
+;  For the ones with border and fill different, need to actually check the top and bottom border weren't clipped
+;  Status is stored at TempWord1+1, just not used yet.
+
+#define rightbordermask TempWord2
+#define leftbordermask TempWord2+1
+#define toprightmask TempWord3
+#define topleftmask TempWord3+1
+rect:
+;Inputs:
+;     A is the type of rectangle to draw
+;        0 =White
+;        1 =Black
+;        2 =XOR
+;        3 =Black border
+;        4 =White border
+;        5 =XOR border
+;        6 =Black border, white inside
+;        7 =Black border, XOR inside
+;        8 =White border, black inside
+;        9 =White border, XOR inside
+;        10=Shift Up
+;        11=Shift Down
+;     B is the height
+;     C is the Y pixel coordinate
+;     D is the width in pixels
+;     E is is the X pixel coordinate
+
+;Need to generate a top/bottom left and right mask
+;Need to generate a left and right mask
+  ld (TempWord1),a    ;saving the method
+  ld a,e
+  and 7
+  ld hl,spritemask
+  add a,l
+  ld l,a
+#if spritemask&255>248
+  jr nc,$+3
+  inc h
+#endif
+  cpl
+  ld (topleftmask),a
+  ld l,a
+  rra
+  xor l
+  ld (leftbordermask),a
+
+  ld a,e
+  add a,d
+  cpl
+  and 7
+#if spritemask&255>248
+  ld hl,spritemask
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+#else
+  add a,spritemask&255
+  ld l,a
+#endif
+  ld (toprightmask),a
+  ld l,a
+  rra
+  xor l
+  ld (rightbordermask),a
+
+
+;Now we make sure the rect is on-screen is on-screen in the horizontal direction
+  sla l     ;This will hold clipping info
+
+  ld a,c
+  cp 64
+  jr c,+_
+  add a,b
+  ret nc
+  ld c,0
+  ld b,a
+  inc l
+_:
+;Next check b+c<=64 and b>0
+  sla l
+  ld a,64
+  sub c
+  ret z
+  cp b
+  jr nc,+_
+  ld b,a
+  inc l
+_:
+
+;Next check if the rect is on-screen in the vertical direction
+  ld a,e
+  cp 96
+  jr c,+_
+  add a,d
+  ret nc
+  ld d,a
+  xor a
+  ld e,a
+  ld (rightbordermask),a
+
+_:
+;Next check d+e<=64
+  ld a,96
+  sub e
+  cp d
+  jr nc,+_
+  ld d,a
+  xor a
+  ld (leftbordermask),a
+_:
+;B is the height
+;C is the Y pixel coordinate
+;D is the width in pixels
+;E is is the X pixel coordinate
+;L is clipping flags:
+;   bit 0 means bottom-clipped
+;   bit 1 means top-clipped
+  ld a,l
+  ld (TempWord1+1),a    ;Store clipping flags
+;Now We calculate where to begin drawing.
+;Note that this will always start on screen due to how we performed clipping
+  ld a,b
+  ld h,0
+  ld b,h
+  ld l,c
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  ld c,e
+  srl c
+  srl c
+  srl c
+  add hl,bc
+  ld bc,(gbuf_temp)
+  add hl,bc
+  ld b,a
+;Need to calculate how many bytes spanned
+  ld a,e
+  and %11111000
+  ld c,a
+  ld a,e
+  add a,d
+  and %11111000
+  sub c
+  ld d,a
+  inc d
+;B is height
+;HL points to where to start drawing
+;D is bytes spanned
+
+  ld a,(TempWord1)
+  or a
+  jp z,rect_wbwf
+  dec a
+  jp z,rect_bbbf
+  dec a
+  jp z,rect_xbxf
+  dec a
+  jp z,rect_bbcf
+  dec a
+  jp z,rect_wbcf
+  dec a
+  jp z,rect_xbcf
+  dec a
+  jp z,rect_bbwf
+  dec a
+  jp z,rect_bbxf
+  dec a
+  jp z,rect_wbbf
+  dec a
+  jp z,rect_wbxf
+  dec a
+  jp z,rect_shift_up
+  dec a
+  jp z,rect_shift_down
+  dec a
+  jp z,rect_shift_right
+  dec a
+  jp z,rect_shift_left
+  dec a
+  jp z,rect_xbbf
+  dec a
+  ret nz
+rect_xbwf:
+  call horiz_xb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_xb
+  ;Here we need to fill with an inverted border, white fill
+  dec d
+  jr z,rect_xbwf_1byte
+rect_xbwf_loop:
+  push de
+  push hl
+  ld a,(topleftmask)
+  rra
+  cpl
+  and (hl)
+  ld e,a
+  ld a,(leftbordermask)
+  xor e
+  ld (hl),a
+  inc hl
+  dec d
+  jr z,+_
+  ld (hl),0
+  inc hl
+  dec d
+  jr nz,$-4
+_:
+  ld a,(toprightmask)
+  rla
+  cpl
+  and (hl)
+  ld e,a
+  ld a,(rightbordermask)
+  xor e
+  ld (hl),a
+  pop hl
+  ld e,12
+  add hl,de
+  pop de
+  djnz rect_xbwf_loop
+  jp horiz_xb
+rect_xbwf_1byte:
+  ld a,(topleftmask)
+  ld e,a
+  ld a,(toprightmask)
+  and e
+  ld e,a
+  ld a,(leftbordermask)
+  ld d,a
+  ld a,(rightbordermask)
+  or d
+  and e
+  ld d,a
+  ld a,e
+  cpl
+  ld e,a
+_:
+  ld a,(hl)
+  and e
+  xor d
+  ld (hl),a
+  inc hl
+  djnz -_
+rect_wbwf:
+_:
+  call horiz_wb
+  djnz -_
+  ret
+rect_bbbf:
+;B is height
+;HL points to where to start drawing
+;D is bytes spanned
+_:
+  call horiz_bb
+  djnz -_
+  ret
+rect_xbxf:
+_:
+  call horiz_xb
+  djnz -_
+  ret
+rect_bbcf:
+  call horiz_bb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_bb
+  ;Here we need to fill with a black border, clear fill
+  ret
+rect_wbcf:
+  call horiz_wb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_wb
+  ;Here we need to fill with a white border, clear fill
+  ret
+rect_xbcf:
+  call horiz_xb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_xb
+  ;Here we need to fill with a inverted border, clear fill
+  ret
+rect_bbwf:
+  call horiz_bb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_bb
+  ;Here we need to fill with a black border, white fill
+  ret
+rect_bbxf:
+  call horiz_bb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_bb
+  ;Here we need to fill with a black border, inverted fill
+  ret
+rect_wbbf:
+  call horiz_wb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_wb
+  ;Here we need to fill with a white border, black fill
+  ret
+rect_wbxf:
+  call horiz_wb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_wb
+  ;Here we need to fill with a white border, inverted fill
+  ret
+rect_xbbf:
+  call horiz_xb
+  dec b
+  ret z
+  dec b
+  jp z,horiz_xb
+  ;Here we need to fill with a inverted border, black fill
+  ret
+rect_shift_up:
+rect_shift_down:
+rect_shift_right:
+rect_shift_left:
+  ret
+horiz_bb:
+  push de
+  dec d
+  ld a,(topleftmask)
+  jr nz,+_
+  ld e,a
+  ld a,(toprightmask)
+  and e
+  or (hl)
+  ld (hl),a
+  jr endhoriz_bb
+_:
+  push hl
+  or (hl)
+  ld (hl),a
+  inc hl
+  dec d
+  jr z,horizbb_lastiter
+_:
+  ld (hl),-1
+  inc hl
+  dec d
+  jr nz,-_
+horizbb_lastiter:
+  ld a,(toprightmask)
+  or (hl)
+  ld (hl),a
+  pop hl
+endhoriz_bb:
+  ld e,12
+  add hl,de
+  pop de
+  ret
+
+
+horiz_wb:
+  push de
+  dec d
+  ld a,(topleftmask)
+  cpl
+  jr nz,+_
+  ld e,a
+  ld a,(toprightmask)
+  cpl
+  or e
+  and (hl)
+  ld (hl),a
+  jr endhoriz_bb
+_:
+  push hl
+  and (hl)
+  ld (hl),a
+  inc hl
+  dec d
+  jr z,horizwb_lastiter
+_:
+  ld (hl),0
+  inc hl
+  dec d
+  jr nz,-_
+horizwb_lastiter:
+  ld a,(toprightmask)
+  cpl
+  and (hl)
+  ld (hl),a
+  pop hl
+  jp endhoriz_bb
+
+
+horiz_xb:
+  push de
+  dec d
+  ld a,(topleftmask)
+  jr nz,+_
+  ld e,a
+  ld a,(toprightmask)
+  and e
+  xor (hl)
+  ld (hl),a
+  jr endhoriz_bb
+_:
+  push hl
+  xor (hl)
+  ld (hl),a
+  inc hl
+  dec d
+  jr z,horizxb_lastiter
+_:
+  ld a,(hl)
+  cpl
+  ld (hl),a
+  inc hl
+  dec d
+  jr nz,-_
+horizxb_lastiter:
+  ld a,(toprightmask)
+  xor (hl)
+  ld (hl),a
+  pop hl
+  jp endhoriz_bb
+
+
+.echo "rect: ",$-rect
+;Need to beat 796 bytes

@@ -1,0 +1,868 @@
+bordermask = TempWord2
+fillmask   = TempWord3
+leftmask   = bordermask
+rightmask  = fillmask
+rect:
+;Inputs:
+;   A is the type of rectangle to draw
+;      0 = White
+;      1 = Black
+;      2 = XOR
+;      3 = Black border
+;      4 = White border
+;      5 = XOR border
+;      6 = Black border, white fill
+;      7 = Black border, invert fill
+;      8 = White border, black fill
+;      9 = White border, invert fill
+;     10 = Shift Up
+;     11 = Shift Down
+;     12 = Shift Right    *Not Implmented
+;     13 = Shift Left     *Not Implemented
+;     14 = Pxl-Test Rect (count the on pixels)
+;     15 = Pxl-Test border (count the on pixels)
+;     16 = Invert border, Black fill
+;     17 = Invert border, White fill
+;   B is the height
+;   C is the Y pixel coordinate
+;   D is the width in pixels
+;   E is is the X pixel coordinate
+;   (gbuf_temp) points to the buffer to draw to.
+;Outputs:
+;   BC is the count for the pixel test methods.
+;Destroys:
+;   AF,BC,DE,HL, TempWord1, TempWord2
+;   IX is destroyed in the pixel count and shifting routines.
+  or a
+  jp z,rect_wbwf
+  dec a
+  jp z,rect_bbbf
+  dec a
+  jp z,rect_xbxf
+  dec a
+  jp z,rect_bbcf
+  dec a
+  jp z,rect_wbcf
+  dec a
+  jp z,rect_xbcf
+  dec a
+  jr z,rect_bbwf
+  dec a
+  jr z,rect_bbxf
+  dec a
+  jr z,rect_wbbf
+  dec a
+  jr z,rect_wbxf
+  dec a
+  jp z,rect_shift_up
+  dec a
+  jp z,rect_shift_down
+  dec a
+  jp z,rect_shift_right
+  dec a
+  jp z,rect_shift_left
+  dec a
+  jp z,pixel_test_rect
+  dec a
+  jp z,pixel_test_border
+  dec a
+  jr z,rect_xbbf
+  dec a
+  ret nz
+
+rect_xbwf:
+  push de
+  push bc
+  call rect_xbcf
+  jr rect_white_fill
+
+rect_bbwf:
+  push de
+  push bc
+  call rect_bbcf
+rect_white_fill:
+  pop bc
+  pop de
+  inc c
+  inc e
+  ld a,b
+  sub 2
+  ret c
+  ld b,a
+  ld a,d
+  sub 2
+  ret c
+  ld d,a
+  jr rect_wbwf
+
+rect_bbxf:
+  push de
+  push bc
+  call rect_bbcf
+  jr rect_x_fill
+
+rect_wbxf:
+  push de
+  push bc
+  call rect_wbcf
+rect_x_fill:
+  pop bc
+  pop de
+  inc c
+  inc e
+  ld a,b
+  sub 2
+  ret c
+  ld b,a
+  ld a,d
+  sub 2
+  ret c
+  ld d,a
+  jr rect_xbxf
+
+rect_wbbf:
+  push de
+  push bc
+  call rect_wbcf
+  jr rect_black_fill
+
+rect_xbbf:
+  push de
+  push bc
+  call rect_xbcf
+rect_black_fill:
+  pop bc
+  pop de
+  inc c
+  inc e
+  ld a,b
+  sub 2
+  ret c
+  ld b,a
+  ld a,d
+  sub 2
+  ret c
+  ld d,a
+  jr rect_bbbf
+
+rect_wbwf:
+  call rectsub
+  ret nc
+_:
+  call horiz_wb
+  djnz -_
+  ret
+rect_bbbf:
+  call rectsub
+  ret nc
+_:
+  call horiz_bb
+  djnz -_
+  ret
+rect_xbxf:
+  call rectsub
+  ret nc
+_:
+  call horiz_xb
+  djnz -_
+  ret
+
+rect_bbcf:
+  call rectsub
+  ret nc
+  rra
+  jr c,+_
+  push af
+  call horiz_bb
+  pop af
+  dec b
+  ret z
+_:
+  ld de,(bordermask)
+  rra
+  push af
+  jr nc,rect_bbcf_loopend
+_:
+  push bc
+  push hl
+  ld a,d
+  or (hl)
+  ld (hl),a
+  ld b,0
+  dec c
+  add hl,bc
+  ld a,e
+  or (hl)
+  ld (hl),a
+  pop hl
+  ld c,12
+  add hl,bc
+  pop bc
+rect_bbcf_loopend:
+  djnz -_
+  pop af
+  ret c
+  ld de,(fillmask)
+  jp horiz_bb
+
+rect_wbcf:
+  call rectsub
+  ret nc
+  rra
+  jr c,+_
+  push af
+  call horiz_wb
+  pop af
+  dec b
+  ret z
+_:
+  ld de,(bordermask)
+  rra
+  push af
+
+  ld de,(bordermask)
+  ld a,d
+  cpl
+  ld d,a
+  ld a,e
+  cpl
+  ld e,a
+  jr nc,rect_wbcf_loopend
+_:
+  push bc
+  push hl
+  ld a,d
+  and (hl)
+  ld (hl),a
+  ld b,0
+  dec c
+  add hl,bc
+  ld a,e
+  and (hl)
+  ld (hl),a
+  pop hl
+  ld c,12
+  add hl,bc
+  pop bc
+rect_wbcf_loopend:
+  djnz -_
+  pop af
+  ret c
+  ld de,(fillmask)
+  jp horiz_wb
+
+rect_xbcf:
+  call rectsub
+  ret nc
+  rra
+  jr c,+_
+  push af
+  call horiz_xb
+  pop af
+  dec b
+  ret z
+_:
+  ld de,(bordermask)
+  rra
+  push af
+  jr nc,rect_xbcf_loopend
+_:
+  push bc
+  push hl
+  ld a,d
+  xor (hl)
+  ld (hl),a
+  ld b,0
+  dec c
+  add hl,bc
+  ld a,e
+  xor (hl)
+  ld (hl),a
+  pop hl
+  ld c,12
+  add hl,bc
+  pop bc
+rect_xbcf_loopend:
+  djnz -_
+  pop af
+  ret c
+  ld de,(fillmask)
+  jp horiz_xb
+
+horizline_white:
+;takes as input E=x, A=y, D=width as input
+  ld b,1
+  ld c,a
+  call rectsub
+  ret nc
+horiz_wb:
+;Draws a horizontal white border
+
+;Save the width and height
+  push bc
+
+;Get the width in B
+  ld b,c
+
+;Check if the width is 1
+  ld a,d
+  dec b
+  jr nz,+_
+  and e
+  cpl
+  and (hl)
+  ld (hl),a
+  jr rect_add12
+_:
+
+;save the pointer so that we can add 12 later
+  push hl
+
+  cpl
+  and (hl)
+  ld (hl),a
+  xor a
+  .db $FE
+_:
+  ld (hl),a
+  inc hl
+  djnz -_
+  ld a,e
+  cpl
+  and (hl)
+  ld (hl),a
+
+;restore the pointer and add 12
+;take advantage of B=0 before restoring
+  jr rect_restadd12
+
+horizline_black:
+;takes as input E=x, A=y, D=width as input
+  ld b,1
+  ld c,a
+  call rectsub
+  ret nc
+horiz_bb:
+;Draws a horizontal black border
+
+;Save the width and height
+  push bc
+
+;Get the width in B
+  ld b,c
+
+;Check if the width is 1
+  ld a,d
+  dec b
+  jr nz,+_
+  and e
+  or (hl)
+  ld (hl),a
+  jr rect_add12
+_:
+
+;save the pointer so that we can add 12 later
+  push hl
+
+  or (hl)
+  ld (hl),a
+  ld a,-1
+  .db $FE
+_:
+  ld (hl),a
+  inc hl
+  djnz -_
+  ld a,e
+  or (hl)
+  ld (hl),a
+
+  jr rect_restadd12
+
+horizline_invert:
+;takes as input E=x, A=y, D=width as input
+  ld b,1
+  ld c,a
+  call rectsub
+  ret nc
+horiz_xb:
+;Draws a horizontal inverted border
+
+;Save the width and height
+  push bc
+
+;Get the width in B
+  ld b,c
+
+;Check if the width is 1
+  ld a,d
+  dec b
+  jr nz,+_
+  and e
+  xor (hl)
+  ld (hl),a
+  jr rect_add12
+_:
+
+;save the pointer so that we can add 12 later
+  push hl
+
+  xor (hl)
+  ld (hl),a
+  jr $+5
+_:
+  ld a,(hl)
+  cpl
+  ld (hl),a
+  inc hl
+  djnz -_
+  ld a,e
+  xor (hl)
+  ld (hl),a
+
+;restore the pointer and add 12
+;take advantage of B=0 before restoring
+rect_restadd12:
+  pop hl
+rect_add12:
+  ld c,12
+  add hl,bc
+  pop bc
+  ret
+
+horiz_count:
+;returns A as the number of set bits.
+;screen is less than 256 pixels wide, so no need to worry about overflow
+  push bc
+  ld b,c
+  ld c,-1
+  dec b
+  jr nz,+_
+  ld a,d
+  and e
+  and (hl)
+  inc c
+  add a,a
+  jr c,$-2
+  jr nz,$-3
+  add ix,bc
+  jr rect_add12
+_:
+  push hl
+  ld a,(hl)
+  and d
+  inc c
+  add a,a
+  jr c,$-2
+  jr nz,$-3
+  jr horiz_count_loop_end
+horiz_count_loop:
+  ld a,(hl)
+  .db $FE
+  inc c
+  add a,a
+  jr c,$-2
+  jr nz,$-3
+horiz_count_loop_end:
+  inc hl
+  djnz horiz_count_loop
+  ld a,(hl)
+  and e
+  .db $FE
+  inc c
+  add a,a
+  jr c,$-2
+  jr nz,$-3
+  add ix,bc
+  jr rect_restadd12
+
+rect_shift_up:
+  call rectsub
+  ret nc
+  dec c
+  jr z,rect_shift_up_1col
+  jr rect_shift_up_end
+rect_shift_up_loop:
+  push bc
+  push hl
+
+  push hl
+  pop ix
+
+  ld a,(ix+12)
+  xor (hl)
+  and d
+  xor (hl)
+  ld (hl),a
+
+  ld b,c
+  jr rect_shift_up_loop_final
+_:
+  ld a,(ix+12)
+  ld (hl),a
+rect_shift_up_loop_final:
+  inc hl
+  inc ix
+  djnz -_
+  ld a,(ix+12)
+  xor (hl)
+  and e
+  xor (hl)
+  ld (hl),a
+
+  pop hl
+  ld c,12
+  add hl,bc
+  pop bc
+rect_shift_up_end:
+  djnz rect_shift_up_loop
+  inc c
+  jp horiz_wb
+
+rect_shift_up_1col:
+  ld a,d
+  and e
+  ld d,a
+  jr rect_shift_up_1col_end
+_:
+  push hl
+  pop ix
+
+  ld a,(ix+12)
+  xor (hl)
+  and d
+  xor (hl)
+  ld (hl),a
+  ld a,l
+  add a,12
+  ld l,a
+  jr nc,rect_shift_up_1col_end
+  inc h
+rect_shift_up_1col_end:
+  djnz -_
+  ld a,d
+  cpl
+  and (hl)
+  ld (hl),a
+  ret
+
+rect_shift_down:
+  call rectsub
+  ret nc
+;need to start at the bottom and work backwards!
+;HL + B*12-1
+  push bc
+  push hl
+  ld a,c
+  dec b
+  ld h,0
+  ld l,b
+  ld b,h
+  ld c,l
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  dec l       ;B is at most 63, B*12 != 0 mod 256, so this is safe
+  ld c,a
+  add hl,bc
+  pop bc
+  add hl,bc
+  pop bc
+
+
+
+  dec c
+  jr z,rect_shift_down_1col
+  jr rect_shift_down_end
+rect_shift_down_loop:
+  push bc
+  push hl
+  push hl
+  pop ix
+
+  ld a,(ix-12)
+  xor (hl)
+  and e
+  xor (hl)
+  ld (hl),a
+
+  ld b,c
+  jr rect_shift_down_loop_final
+_:
+  ld a,(ix-12)
+  ld (hl),a
+rect_shift_down_loop_final:
+  dec hl
+  dec ix
+  djnz -_
+  ld a,(ix-12)
+  xor (hl)
+  and d
+  xor (hl)
+  ld (hl),a
+
+  pop hl
+  ld bc,-12
+  add hl,bc
+  pop bc
+rect_shift_down_end:
+  djnz rect_shift_down_loop
+  or a
+  sbc hl,bc
+  inc c
+  jp horiz_wb
+
+rect_shift_down_1col:
+  ld a,d
+  and e
+  ld d,a
+  jr rect_shift_up_1col_end
+_:
+  push hl
+  pop ix
+
+  ld a,(ix-12)
+  xor (hl)
+  and d
+  xor (hl)
+  ld (hl),a
+  ld a,l
+  sub 12
+  ld l,a
+  jr nc,rect_shift_down_1col_end
+  dec h
+rect_shift_down_1col_end:
+  djnz -_
+  ld a,d
+  cpl
+  and (hl)
+  ld (hl),a
+  ret
+
+rect_shift_right:
+rect_shift_left:
+  ret
+
+setBC_0:
+  ld bc,0
+  ret
+pixel_test_rect:
+  call rectsub
+  jr nc,setBC_0
+  ld ix,0
+_:
+  call horiz_count
+  djnz -_
+  ld b,ixh
+  ld c,ixl
+  ret
+
+pixel_test_border:
+  call rectsub
+  jr nc,setBC_0
+  ld ix,0
+  call horiz_count
+  dec b
+  ret z
+  ld de,(bordermask)
+  jr pixel_test_border_loop_end
+pixel_test_border_loop:
+  push bc
+  push hl
+  ld a,d
+  and (hl)
+  jr z,+_
+  inc ix
+_:
+  ld b,0
+  dec c
+  add hl,bc
+
+  ld a,e
+  and (hl)
+  jr z,+_
+  inc ix
+_:
+  pop hl
+  ld c,12
+  add hl,bc
+  pop bc
+pixel_test_border_loop_end:
+  djnz pixel_test_border_loop
+  ld de,(fillmask)
+  call horiz_count
+  ld b,ixh
+  ld c,ixl
+  ret
+
+
+rectsub:
+;Input:
+;   (B,C) is (height,y)
+;   (D,E) is (width,x)
+  ld a,b
+  ld b,e
+  ld e,a
+;(E,C) = (x,y) signed
+;(D,B) = (w,h) unsigned
+;Output:
+;   Start Mask  D
+;   End Mask    E
+;   Height      B
+;   Byte width  C
+;   buf ptr     HL
+;   bit 0 of A set if top clipped
+;   bit 1 of A set if bottom clipped
+
+;H will temporarily keep track of left and right OOB
+;bit 0 means left OOB, bit 1 means right OOB
+;bit 2 means top OOB, bit 3 means bottom OOB
+  ld hl,0
+  ld (bordermask),hl
+
+  bit 7,b
+  jr z,+_
+  ;Here, b is negative, so we have to add width to x.
+  ;If the result is still negative, the entire box is out of bounds, so return
+  ;otherwise, set width=newvalue,b=0
+  ld a,d
+  add a,b
+  ret nc
+  ld d,a
+  ld b,h
+  inc h
+_:
+  bit 7,c
+  jr z,+_
+  ld a,e
+  add a,c
+  ret nc
+  ld e,a
+  ld c,0
+  set 2,h
+_:
+;We have clipped all negative areas.
+;Now we need to verify that (x,y) are on the screen.
+;If they aren't, then the whole rectangle is off-screen so no need to draw.
+  ld a,b
+  cp 96
+  ret nc
+  ld a,c
+  cp 64
+  ret nc
+;Let's also verfiy that height and width are non-zero:
+  ld a,d
+  or a
+  ret z
+  ld a,e
+  or a
+  ret z
+;Now we need to clip the width and height to be in-bounds
+  add a,c
+  cp 65
+  jr c,+_
+  ;Here we need to set e=64-c
+  ld a,64
+  sub c
+  ld e,a
+  set 3,h
+_:
+  ld a,d
+  add a,b
+  cp 97
+  jr c,+_
+  ;Here we need to set d=96-b
+  ld a,96
+  sub b
+  ld d,a
+  inc h
+  inc h
+_:
+;B is starting X
+;C is starting Y
+;D is width
+;E is height
+;H has info on if the masks need to be adjusted for border vs. fill
+  push bc
+
+;Generate the first mask
+  ld l,b
+  ld a,b
+  and 7
+  ld b,a
+  ld a,-1
+  jr z,+_
+  rra \ djnz $-1
+_:
+
+  inc a
+  cpl
+  ld (fillmask+1),a   ;left mask
+  rr h
+  jr c,+_
+  add a,1
+  rra
+  ld (bordermask+1),a
+_:
+
+
+
+  dec d
+  ld a,l
+  add a,d
+  and 7
+  ld b,a
+  ld a,$7F
+  jr z,+_
+  rrca \ djnz $-1
+_:
+  inc a
+  ld (fillmask),a   ;left mask
+  rr h
+  jr c,+_
+  dec a
+  cpl
+  ld (bordermask),a
+_:
+  ex (sp),hl
+
+  ld a,h
+  ld h,b
+  add hl,hl
+  add hl,bc
+  add hl,hl
+  add hl,hl
+  ld b,a
+  rrca
+  rrca
+  rrca
+  and 31
+  add a,l
+  ld l,a
+  jr nc,+_
+  inc h
+_:
+;B is the starting x, D is width
+;Only A,B,D,E are available
+  ld a,b
+  add a,d
+  and $F8
+  ld d,a
+
+  ld a,b
+  and $F8
+  ld b,a
+  ld a,d
+  sub b
+  rrca
+  rrca
+  rrca
+  ld c,a
+  ld b,e
+  ld de,(gbuf_temp)
+  add hl,de
+  ld de,(fillmask)
+  inc c
+  pop af
+  scf
+  ret

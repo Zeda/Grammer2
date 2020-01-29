@@ -1,0 +1,52 @@
+  dec hl \ dec hl \ dec hl
+  ld a,(hl) \ cp 'M' \ jr nz,+_
+  dec hl
+  ld a,(hl) \ cp 'O' \ jr nz,+_
+  call ParseFullArg
+  ld a,c \ and 3
+  add a,12
+  out (16),a
+  ret
+_:
+
+; Save the location of the names of the variables to save.
+  ld hl,(parsePtr)
+  dec hl
+  push hl
+  ld (parsePtr),hl
+
+; Save the stack base
+  ld hl,(stack_ptr)
+  push hl
+  call pushvars_00
+
+; Now resume parsing
+  call ParserNext
+
+;Restore vars!
+; Restore stack pointer to the original state.
+  pop hl
+  ld (stack_ptr),hl
+
+; Get the vars list
+  ex (sp),hl
+
+; Begin looping. If the stack overflowed, there would have been an error,
+; so no need to verify
+_:
+  inc hl
+  ld a,(hl)
+  inc hl
+  call VarP
+  jr nc,+_
+  ex de,hl
+  ex (sp),hl
+  ldi
+  ldi
+  ex (sp),hl
+  ld a,(hl)
+  cp 2Bh
+  jr z,-_
+_:
+  pop hl
+  ret

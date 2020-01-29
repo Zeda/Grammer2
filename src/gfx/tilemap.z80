@@ -1,0 +1,877 @@
+tilemap_new:
+  dec a
+  jp z,tilemap_init
+  ld hl,(parsePtr)
+  dec a
+  jp z,tilemap_fullrender
+  ld c,1
+  dec a
+  jr z,tmap_scroll_down
+  dec a
+  jr z,tmap_scroll_left
+  dec a
+  jr z,tmap_scroll_right
+  dec a
+  jr z,tmap_scroll_up
+  dec a
+  jr z,tmap_scroll
+  dec a
+  jp z,tmap_gettile
+  dec a
+  jp z,tmap_settile
+  dec a
+  jp z,tmap_gettile_pxl
+  jp p1_errbadtoken
+
+tmap_scroll_left:
+  ld a,(hl)
+  cp $2B
+  call z,p1_ParseNextFullArg
+  ld b,c
+tmap_scroll_left_loop:
+_:
+  push bc
+  call tilemap_scroll_left
+  pop bc
+  djnz -_
+  ret
+
+tmap_scroll_right:
+  ld a,(hl)
+  cp $2B
+  call z,p1_ParseNextFullArg
+  ld b,c
+tmap_scroll_right_loop:
+_:
+  push bc
+  call tilemap_scroll_right
+  pop bc
+  djnz -_
+  ret
+
+tmap_scroll_down:
+  ld a,(hl)
+  cp $2B
+  call z,p1_ParseNextFullArg
+  ld b,c
+tmap_scroll_down_loop:
+_:
+  push bc
+  call tilemap_scroll_down
+  pop bc
+  djnz -_
+  ret
+
+tmap_scroll_up:
+  ld a,(hl)
+  cp $2B
+  call z,p1_ParseNextFullArg
+  ld b,c
+tmap_scroll_up_loop:
+_:
+  push bc
+  call tilemap_scroll_up
+  pop bc
+  djnz -_
+  ret
+
+tmap_scroll:
+  call p1_ParseNextFullArg
+  cp $2B
+  ld a,c
+  push af
+  ld c,1
+  call z,p1_ParseNextFullArg
+  pop af
+  ld b,c
+
+  rrca
+  push af
+  push bc
+  call c,tmap_scroll_down_loop
+  pop bc
+  pop af
+
+  rrca
+  push af
+  push bc
+  call c,tmap_scroll_left_loop
+  pop bc
+  pop af
+
+  rrca
+  push af
+  push bc
+  call c,tmap_scroll_right_loop
+  pop bc
+  pop af
+
+  rrca
+  ret nc
+  jp tmap_scroll_up_loop
+
+tmap_gettile_pxl:
+  call p1_ParseNextFullArg
+  ld a,(tilemap_sy)
+  add a,c
+  and %11111000
+  rrca
+  rrca
+  rrca
+  ld c,a
+  ld a,(tilemap_y)
+  add a,c
+  ld c,a
+  push bc
+  call p1_ParseNextFullArg
+  ld a,(tilemap_sx_mask)
+  .db $FE
+_:
+  inc c
+  add a,a
+  jr nc,-_
+  ld a,c
+  and %11111000
+  rrca
+  rrca
+  rrca
+  ld c,a
+  ld a,(tilemap_x)
+  add a,c
+  pop de
+  ld c,a
+  jr +_
+tmap_gettile:
+; This gets the tile number based on the map coordinates
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+_:
+  ld b,0
+  ld hl,(tilemap_height)
+  ld a,e
+  cp l
+  jr nc,setC_to_B
+  ld a,d
+  cp h
+  jr nc,setC_to_B
+  ;need tilemap_base+width*e+c
+  ld hl,(tilemap_base)
+  ld b,0
+  add hl,bc
+  ld d,b
+  ld a,(tilemap_width)
+  ld b,a
+  or a
+  jr z,+_
+  add hl,de
+  djnz $-1
+_:
+  ld c,(hl)
+  ld b,d
+  ret
+setC_to_B:
+  ld c,b
+  ret
+tmap_settile:
+  call p1_ParseNextFullArg
+  push bc
+  call p1_ParseNextFullArg
+  pop de
+  ;need tilemap_base+width*e+c
+  ld b,0
+  ld hl,(tilemap_height)
+  ld a,e
+  cp l
+  jr nc,parse_return_0
+  ld a,d
+  cp h
+  jr nc,parse_return_0
+
+  ld hl,(tilemap_base)
+  add hl,bc
+  ld d,b
+  ld a,(tilemap_width)
+  ld b,a
+  or a
+  jr z,+_
+  add hl,de
+  djnz $-1
+_:
+  push hl
+  call p1_ParseNextFullArg
+  pop hl
+  ld a,(hl)
+  ld (hl),c
+  ld c,a
+  ld b,0
+  ret
+parse_return_0:
+  call p1_ParseNextFullArg
+  ld bc,0
+  ret
+
+tilemap_init:
+;Use this routine to initialize a tilemap
+;   (tilemap_base) points to the tilemap base
+;   (tilemap_height) is the height
+;   (tilemap_width) is the width
+;   (sprite_select) points to the routine for selecting the sprite
+;   (tilemap_buf) points to the buffer to draw on
+;   tilemap_flags
+;Need to set
+;   (tilemap_sy) is the y-offset into the sprite
+;   (tilemap_y) is the y-offset into the tilemap
+;   (tilemap_sx_mask) is the column mask for the sprite
+;   (tilemap_x) is the x-offset into the tilemap
+;   (tilemap_top) is the pointer to the upper-left tile in view
+;   (tilemap_bottom) is the pointer to the bottom-left incoming row
+
+  call p1_ParseNextFullArg
+  ld (tilemap_base),bc
+  call p1_ParseNextFullArg
+  ld (spritesheet_ptr),bc
+  call p1_ParseNextFullArg
+  ld a,c
+  ld (tilemap_height),a
+  call p1_ParseNextFullArg
+  cp $2B
+  ld a,c
+  ld (tilemap_width),a
+  ld bc,(bufptr)
+  call z,p1_ParseNextFullArg
+  ld (tilemap_buf),bc
+
+  ld hl,sprite_selector
+  ld (sprite_select),hl
+  xor a
+  ld (tilemap_flags),a
+
+;now generate the rest
+  ld hl,0
+  ld b,h    ;for later
+  ld (tilemap_sy),hl
+  ld l,$80
+  ld (tilemap_sx_mask),hl
+  ld hl,(tilemap_base)
+  ld (tilemap_top),hl
+  ld a,(tilemap_width)
+  add a,a \ rl b
+  add a,a \ rl b
+  add a,a \ rl b
+  ld c,a
+  add hl,bc
+  ld (tilemap_bottom),hl
+  ret
+
+tilemap_fullrender:
+;Inputs:
+;   (D,E) is the offset into the map
+;Set:
+;   (tilemap_sx_mask) is the column mask for the sprite
+;   (tilemap_x) is the x-offset into the tilemap
+;   (tilemap_sy) is the x-offset into the sprite
+;   (tilemap_y) is the y-offset into the tilemap
+;   (tilemap_top) is the pointer to the upper-left tile in view
+;   (tilemap_bottom) is the pointer to the bottom-left incoming row
+
+  ld a,(hl)
+  cp $2B
+  ld c,0
+  call z,p1_ParseNextFullArg
+  push bc
+  cp $2B
+  ld c,0
+  call z,p1_ParseNextFullArg
+  pop de
+
+
+  ld a,e
+  ld (tilemap_y),a
+  ld a,c
+  ld (tilemap_x),a
+  xor a
+  ld d,a  ;for later
+  ld b,a  ; for later
+
+  ld (tilemap_sy),a
+  ld a,$80
+  ld (tilemap_sx_mask),a
+
+
+  ld hl,(tilemap_base)
+  ;top is x+y*w
+  add hl,bc
+  ld a,(tilemap_width)
+  or a
+  jr nc,+_
+  ld b,a
+  add hl,de
+  djnz $-1
+_:
+  ld (tilemap_top),hl
+  ld a,(tilemap_width)
+  ;now add width*8 to HL for tilemap_bottom
+  ld e,a
+  add a,a \ rl d
+  add a,a \ rl d
+  add a,a \ rl d
+  ld e,a
+  add hl,de
+  ld (tilemap_bottom),hl
+
+;Now we need to actually draw the tilemap
+;I'm going to do this the slow and easy way
+  ld hl,(tilemap_top)
+  ld de,(tilemap_buf)
+  ld ix,(sprite_select)
+  ld c,0
+tilemap_y_loop:
+  ld b,0
+  push hl
+tilemap_x_loop:
+  push hl
+  push bc
+  push de
+  ld a,(hl)
+  call tilemap_getsprite_at_BC
+  pop hl
+  push hl
+  ;at HL, draw the tile from DE
+  ld bc,12
+  ld a,8
+_:
+  ex de,hl
+  ldi
+  ex de,hl
+  add hl,bc
+  inc c
+  dec a
+  jr nz,-_
+
+  pop de
+  inc de
+  pop bc
+  pop hl
+  inc hl
+  inc b
+  ld a,b
+  cp 12
+  jr nz,tilemap_x_loop
+  ld hl,7*12
+  add hl,de
+  ex de,hl
+  pop hl
+  ;need to add width to HL
+  ld a,(tilemap_width)
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+  inc c
+  bit 3,c
+  jr z,tilemap_y_loop
+  ret
+
+tilemap_scroll_left:
+  ld ix,(sprite_select)
+
+  ld hl,(tilemap_top)
+  ld bc,12
+  add hl,bc
+  ld (tempword2),hl ;tilemap pointer
+
+  ld a,(tilemap_x)
+  add a,12
+  ld b,a
+  ld a,(tilemap_y)
+  ld c,a
+  ld (tempword3),bc ;tilemap (x,y)
+
+  ld a,(hl)
+  call tilemap_getsprite
+  ;DE points to the sprite data
+
+  ld hl,(tilemap_buf)
+  ld bc,11
+  add hl,bc
+
+  ld a,(tilemap_sy)
+  cpl
+  and 7
+  inc a
+  ld b,a
+
+  ld a,(tilemap_sy)
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+  ld a,(tilemap_sx_mask)
+  ld c,a
+tilemap_scroll_left_loop0:
+  push bc
+  ld a,(de)
+  inc de
+  and c
+  add a,255
+  ld b,12
+_:
+  rl (hl)
+  dec hl
+  djnz -_
+  ld c,24
+  add hl,bc
+  pop bc
+  djnz tilemap_scroll_left_loop0
+
+  ld b,7
+tilemap_scroll_left_loop1:
+  ld a,(tempword3)
+  inc a
+  ld (tempword3),a
+  push bc
+  push hl
+  ld hl,(tempword2)
+  ld a,(tilemap_width)
+  ld c,a
+  ld b,0
+  add hl,bc
+  ld (tempword2),hl
+  ld a,(hl)
+  call tilemap_getsprite
+  pop hl
+  ld b,8
+  ld a,(tilemap_sx_mask)
+  ld c,a
+tilemap_scroll_left_loop2:
+  push bc
+  ld a,(de)
+  inc de
+  and c
+  add a,255
+  ld b,12
+_:
+  rl (hl)
+  dec hl
+  djnz -_
+  ld c,24
+  add hl,bc
+  pop bc
+  djnz tilemap_scroll_left_loop2
+  pop bc
+  djnz tilemap_scroll_left_loop1
+
+  ld a,(tempword3)
+  inc a
+  ld (tempword3),a
+
+
+;final iteration
+  push hl
+  ld hl,(tempword2)
+  ld a,(tilemap_width)
+  ld c,a
+  ld b,0
+  add hl,bc
+  ld (tempword2),hl
+  ld a,(hl)
+  call tilemap_getsprite
+  pop hl
+
+  ld a,(tilemap_sy)
+  or a
+  jr z,tilemap_scroll_left_end
+  ld b,a
+
+  ld a,(tilemap_sx_mask)
+  ld c,a
+tilemap_scroll_left_loop3:
+  push bc
+  ld a,(de)
+  inc de
+  and c
+  add a,255
+  ld b,12
+_:
+  rl (hl)
+  dec hl
+  djnz -_
+  ld c,24
+  add hl,bc
+  pop bc
+  djnz tilemap_scroll_left_loop3
+
+tilemap_scroll_left_end:
+  ld hl,tilemap_sx_mask
+  rrc (hl)
+  ret nc
+  inc hl
+  inc (hl)    ;tilemap_x
+  ld hl,(tilemap_top)
+  inc hl
+  ld (tilemap_top),hl
+  ld hl,(tilemap_bottom)
+  inc hl
+  ld (tilemap_bottom),hl
+  ret
+
+
+tilemap_scroll_right:
+  ld ix,(sprite_select)
+
+  ld hl,tilemap_sx_mask
+  rlc (hl)
+  jr nc,+_
+  inc hl
+  dec (hl)    ;tilemap_x
+  ld hl,(tilemap_bottom)
+  dec hl
+  ld (tilemap_bottom),hl
+  ld hl,(tilemap_top)
+  dec hl
+  ld (tilemap_top),hl
+_:
+
+  ld hl,(tilemap_top)
+  ld (tempword2),hl ;tilemap pointer
+
+  ld a,(tilemap_x)
+  ld b,a
+  ld a,(tilemap_y)
+  ld c,a
+  ld (tempword3),bc ;tilemap (x,y)
+
+  ld a,(hl)
+  call tilemap_getsprite
+  ;DE points to the sprite data
+
+  ld hl,(tilemap_buf)
+
+  ld a,(tilemap_sy)
+  cpl
+  and 7
+  inc a
+  ld b,a
+
+  ld a,(tilemap_sy)
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+  ld a,(tilemap_sx_mask)
+  ld c,a
+tilemap_scroll_right_loop0:
+  push bc
+  ld a,(de)
+  inc de
+  and c
+  add a,255
+  ld b,12
+_:
+  rr (hl)
+  inc hl
+  djnz -_
+  pop bc
+  djnz tilemap_scroll_right_loop0
+
+
+  ld b,7
+tilemap_scroll_right_loop1:
+  ld a,(tempword3)
+  inc a
+  ld (tempword3),a
+  push bc
+  push hl
+  ld hl,(tempword2)
+  ld a,(tilemap_width)
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+  ld (tempword2),hl
+  ld a,(hl)
+  call tilemap_getsprite
+  pop hl
+  ld b,8
+  ld a,(tilemap_sx_mask)
+  ld c,a
+tilemap_scroll_right_loop2:
+  push bc
+  ld a,(de)
+  inc de
+  and c
+  add a,255
+  ld b,12
+_:
+  rr (hl)
+  inc hl
+  djnz -_
+  pop bc
+  djnz tilemap_scroll_right_loop2
+  pop bc
+  djnz tilemap_scroll_right_loop1
+
+
+  ld a,(tempword3)
+  inc a
+  ld (tempword3),a
+
+;final iteration
+  push hl
+  ld hl,(tempword2)
+  ld a,(tilemap_width)
+  add a,l
+  ld l,a
+  jr nc,$+3
+  inc h
+  ld (tempword2),hl
+  ld a,(hl)
+  call tilemap_getsprite
+  pop hl
+
+  ld a,(tilemap_sy)
+  or a
+  ret z
+  ld b,a
+
+  ld a,(tilemap_sx_mask)
+  ld c,a
+tilemap_scroll_right_loop3:
+  push bc
+  ld a,(de)
+  inc de
+  and c
+  add a,255
+  ld b,12
+_:
+  rr (hl)
+  inc hl
+  djnz -_
+  pop bc
+  djnz tilemap_scroll_right_loop3
+  ret
+
+
+tilemap_scroll_up:
+  ld ix,(sprite_select)
+  ld a,(tilemap_x)
+  ld h,a
+  ld a,(tilemap_y)
+  add a,8
+  ld l,a
+  ld (tempword3),hl ;tilemap (x,y)
+
+  ld de,(tilemap_buf)
+  ld hl,12
+  add hl,de
+  ld bc,756
+  ldir
+
+;Now we need to populate the row of pixels
+;first right the sprite data as if it is supposed to be aligned
+  ld hl,(tilemap_bottom)
+  ld b,12
+;DE points to where to write the sprite data
+;HL points to the tile
+;B is the number of tiles to read
+tilemap_scroll_up_loop_0:
+  push bc
+  push hl
+  push de
+  ld a,(hl)
+  call tilemap_getsprite
+  ld a,(tilemap_sy)
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+  ld a,(de)
+  pop de
+  ld (de),a
+  inc de
+  pop hl
+  inc hl
+  ld a,(tempword3+1)
+  inc a
+  ld (tempword3+1),a
+  pop bc
+  djnz tilemap_scroll_up_loop_0
+
+;now we need to shift the row left, shifting in the bits from the next tile
+  push de
+  ld a,(hl)
+  call tilemap_getsprite
+  ld a,(tilemap_sy)
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+  ld a,(de)
+  pop hl
+  ld c,a
+  ld a,(tilemap_sx_mask)
+;need to shift in C until A is $80
+  ld de,12
+  jr tilemap_scroll_up_loop_1_start
+tilemap_scroll_up_loop_1:
+  ld b,e
+  rlc c
+_:
+  dec hl
+  rl (hl)
+  djnz -_
+  add hl,de
+tilemap_scroll_up_loop_1_start:
+  add a,a
+  jr nc,tilemap_scroll_up_loop_1
+
+  ld a,(tilemap_sy)
+  inc a
+  and 7
+  ld (tilemap_sy),a
+  ret nz
+  ld a,(tilemap_y)
+  inc a
+  ld (tilemap_y),a
+
+  ld a,(tilemap_width)
+  ld c,a
+  ld b,0
+  ld hl,(tilemap_top)
+  add hl,bc
+  ld (tilemap_top),hl
+  ld hl,(tilemap_bottom)
+  add hl,bc
+  ld (tilemap_bottom),hl
+
+  ret
+
+tilemap_scroll_down:
+  ld ix,(sprite_select)
+  ld a,(tilemap_x)
+  ld h,a
+  ld a,(tilemap_y)
+  ld l,a
+  ld (tempword3),hl ;tilemap (x,y)
+
+  ld de,(tilemap_buf)
+  inc d
+  inc d
+  inc d
+  dec de
+
+  ld hl,-12
+  add hl,de
+  ld bc,756
+  lddr
+
+  ld a,(tilemap_sy)
+  dec a
+  ld (tilemap_sy),a
+  jp p,+_
+  and 7
+  ld (tilemap_sy),a
+  ld a,(tilemap_y)
+  dec a
+  ld (tilemap_y),a
+  ld (tempword3),a
+  ld a,(tilemap_width)
+  neg
+  ld c,a
+  ld b,-1
+  ld hl,(tilemap_top)
+  add hl,bc
+  ld (tilemap_top),hl
+  ld hl,(tilemap_bottom)
+  add hl,bc
+  ld (tilemap_bottom),hl
+_:
+
+;Now we need to populate the row of pixels
+;first right the sprite data as if it is supposed to be aligned
+  ld de,(tilemap_buf)
+  ld hl,(tilemap_top)
+  ld b,12
+;DE points to where to write the sprite data
+;HL points to the tile
+;B is the number of tiles to read
+tilemap_scroll_down_loop_0:
+  push bc
+  push hl
+  push de
+  ld a,(hl)
+  call tilemap_getsprite
+  ld a,(tilemap_sy)
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+  ld a,(de)
+  pop de
+  ld (de),a
+  inc de
+  pop hl
+  inc hl
+  ld a,(tempword3+1)
+  inc a
+  ld (tempword3+1),a
+  pop bc
+  djnz tilemap_scroll_down_loop_0
+
+;now we need to shift the row left, shifting in the bits from the next tile
+  push de
+  ld a,(hl)
+  call tilemap_getsprite
+  ld a,(tilemap_sy)
+  add a,e
+  ld e,a
+  jr nc,$+3
+  inc d
+  ld a,(de)
+  pop hl
+  ld c,a
+  ld a,(tilemap_sx_mask)
+;need to shift in C until A is $80
+  ld de,12
+  jr tilemap_scroll_down_loop_1_start
+tilemap_scroll_down_loop_1:
+  ld b,e
+  rlc c
+_:
+  dec hl
+  rl (hl)
+  djnz -_
+  add hl,de
+tilemap_scroll_down_loop_1_start:
+  add a,a
+  jr nc,tilemap_scroll_down_loop_1
+  ret
+
+tilemap_getsprite:
+  ld bc,(tempword3)
+tilemap_getsprite_at_BC:
+  ld hl,(tilemap_height)
+  jp (ix)
+
+sprite_selector:
+  ld e,a
+  ld a,b
+  cp h
+  jr nc,+_
+  ld a,c
+  cp l
+  ld a,e
+_:
+  ld de,(spritesheet_ptr)
+  ret nc
+
+  ld l,a
+  ld h,0
+  add hl,hl
+  add hl,hl
+  add hl,hl
+  add hl,de
+  ex de,hl
+  ret

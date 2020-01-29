@@ -1,0 +1,99 @@
+ParamToken:
+; This is a fancy routine for pushing and popping data, as well as loading parameters
+;       ParamA,B,...      Loads parameters into these values.
+;           For example, if a routine is called with `prgm(Z,1,2,3` then `ParamA,B,C` will store 1->A, 2->B, 3->C
+;       Param'A,0,B,...   acts as a push operation
+;       Param°A,B,...     acts as a pop operation
+  ld a,(hl)
+  cp $AE    ;'
+  jr z,pushvars
+  cp $0B    ;°
+  jr z,popvars
+;Basically, ]?->A:]?->B:... etc.
+  .db $FE   ;start of `cp *`
+parse_param:
+  inc hl
+  ld a,(hl)
+  inc hl
+  call p1_VarP
+  jr nc,+_
+
+  ;Need to parse the next parameter
+  push de
+  push hl
+  ld hl,qmarkVar
+  call p1_parse_by_ptr_to_ptr
+  pop hl
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  pop hl
+  ld a,(hl)
+  cp 2Bh
+  jr z,parse_param
+_:
+  dec hl
+  ld (parsePtr),hl
+  ret
+pushvars:
+  call p1_ParseNextFullArg
+  ld a,(hl)
+  call pushbc
+  cp 2Bh
+  jr z,pushvars
+  ret
+popvars:
+  inc hl
+  ld a,(hl)
+  inc hl
+  call p1_VarP
+  jr nc,+_
+  ;Need to pop the last item off the stack and copy it to where HL points
+  call popbc
+  ld (hl),c
+  inc hl
+  ld (hl),b
+  ex de,hl
+  ld a,(hl)
+  cp 2Bh
+  jr z,popvars
+_:
+  dec hl
+  ld (parsePtr),hl
+  ret
+
+
+popbc:
+  push hl
+  push de
+  ; Make sure (stack_ptr)-2-(stack_base)>=0
+
+  ld hl,(stack_ptr)
+  ld de,(stack_base)
+  dec hl
+  scf
+  sbc hl,de
+  jp c,p1_ErrStackOverflow_pop
+  add hl,de
+  ld (stack_ptr),hl
+  ld c,(hl)
+  inc hl
+  ld b,(hl)
+  pop de
+  pop hl
+  ret
+pushbc:
+  ld de,(stack_ptr)
+  ld hl,(stack_top)
+  inc de
+  inc de
+  or a
+  sbc hl,de
+  jp c,p1_ErrStackOverflow_push
+  ex de,hl
+  ld (stack_ptr),hl
+  dec hl
+  ld (hl),b
+  dec hl
+  ld (hl),c
+  ret

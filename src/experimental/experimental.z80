@@ -1,0 +1,405 @@
+;All routines must be 768 bytes or less
+;They get copied to moduleExec
+#include "grammer2.5.inc"
+mymodule:
+  .db "Gram"            ;magic number
+  .dw MODULE_VERSION    ;minimum version
+  .dw (mod_start-2-$)/2 ;num elements
+  .dw func11-mod_start  ; ADDSTR
+  .dw func12-mod_start  ; ARRAY
+  .dw func1-mod_start   ; DEL
+  .dw func9-mod_start   ; FLOAT
+  .dw func4-mod_start   ; GET
+  .dw func0-mod_start   ; INITFS
+  .dw func2-mod_start   ; LIST
+  .dw func3-mod_start   ; MAT
+  .dw func6-mod_start   ; NAME
+  .dw func5-mod_start   ; SET
+  .dw func10-mod_start  ; STR
+  .dw func8-mod_start   ; UINT16
+  .dw func7-mod_start   ; UINT8
+
+
+; File storage format needs
+;     - Find
+;     - Create
+;     - Delete
+;     - Resize
+
+
+mod_start:
+
+func0: .db "INITFS",$29 \ .dw func1-$-2
+; This routine initializes the FS
+;
+;   INITFS ptr,size
+;
+  call ParseFullArg
+  ld (FS_begin),bc
+  push bc
+  call ParseNextFullArg
+  pop hl
+  add hl,bc
+  ld (FS_end),hl
+  ret
+
+func1: .db "DEL",$29 \ .dw func12-$-2
+; This routine deletes a var in the FS
+;
+;   DEL "name"
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  call GetGrammerText
+  ld h,d
+  ld l,e
+  add hl,bc
+  ld (hl),0
+  ex de,hl
+  call FS_findvar
+  jp FS_delvar
+
+func12: .db "ARRAY",$29 \ .dw func2-$-2
+; This routine creates an array in the FS
+;
+;   ARRAY "name",TYPE,[elem0,elem1,elem2,...]
+;
+func12_start:
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  call GetGrammerText
+  ld h,d
+  ld l,e
+  add hl,bc
+  ld (hl),0
+  ex de,hl
+  call FS_createvar_max
+  ;HL points to the data
+  ;BC is the size of the entry
+  push hl
+  push hl
+  push bc
+
+; Get the variable type
+  call ParseNextFullArg
+  ld e,c
+
+;Now write the bytes: FS_array, type
+;Make sure there is enough room!
+  pop bc
+  pop hl
+  ld a,b
+  or c
+  jp z,ErrMem
+  ld (hl),FS_array
+  cpi
+  jp po,ErrMem
+  ld (hl),e
+  cpi
+
+  push hl
+  ld hl,(parsePtr)
+  ld a,(hl)
+  pop hl
+  jr array_loop_end
+_:
+  push hl
+  push bc
+  push de
+  call ParseNextFullArg
+  pop hl  ;L is type
+  ld h,a  ;Next byte to be parsed
+  ld a,l  ;A is type
+  ld d,b
+  ld e,c
+  pop bc  ;size remaining
+  ex (sp),hl  ;points to where to write
+  call moduleExec+array_write-func12_start
+  pop de
+  ld a,d
+array_loop_end:
+  cp $2B
+  jr z,-_
+  ;Now calculate the size of the array
+  pop de    ;points to the start
+  or a
+  sbc hl,de
+  ld b,h
+  ld c,l
+  ex de,hl
+  call FS_resize
+  ld b,h
+  ld c,l
+  ret
+
+array_write:
+;A is the type
+;HL is where to write
+;DE is the value to write
+;BC is number of bytes available
+  or a
+  jr z,array_write_uint8
+  dec a
+  jr z,array_write_uint16
+  dec a
+  jp nz,ErrMem
+array_write_float:
+  ;make sure BC>=4
+  ld a,c
+  sub 4
+  ld a,b
+  sbc a,0
+  jp c,ErrMem
+  ex de,hl
+  ldi
+  ldi
+  ldi
+  ldi
+  ex de,hl
+  ret
+array_write_uint8:
+  ;make sure BC>=1
+  ld a,b
+  or c
+  jp z,ErrMem
+  ld (hl),e
+  cpi
+  ret
+array_write_uint16:
+  ;make sure BC>=2
+  ld a,c
+  sub 2
+  ld a,b
+  sbc a,0
+  jp c,ErrMem
+  ld (hl),e
+  cpi
+  ld (hl),d
+  cpi
+  ret
+
+func2: .db "LIST",$29 \ .dw func3-$-2
+; This routine creates a list in the FS
+;
+;   LIST "name",elem0,elem1,elem2,...
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  call GetGrammerText
+  ld h,d
+  ld l,e
+  add hl,bc
+  ld (hl),0
+  ex de,hl
+  call FS_createvar_max
+  ;HL points to the data
+  ;DE points to the entry
+  ld bc,0
+  jp FS_resize
+
+func3: .db "MAT",$29 \ .dw func10-$-2
+; This routine creates a list in the FS
+;
+;   MAT "name",[elem0,elem1,elem2,...],[...
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  call GetGrammerText
+  ld h,d
+  ld l,e
+  add hl,bc
+  ld (hl),0
+  ex de,hl
+  call FS_createvar_max
+  ;HL points to the data
+  ;BC is the size of the entry
+  ld bc,0
+  jp FS_resize
+
+func10: .db "STR",$29 \ .dw func11-$-2
+; This routine creates a list in the FS
+;
+;   STR "name",ptr
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  call GetGrammerText
+  ld h,d
+  ld l,e
+  add hl,bc
+  ld (hl),0
+  ex de,hl
+  call FS_createvar_max
+  ;HL points to the data
+  ;BC is the size available
+  push hl
+  push bc
+  call ParseNextFullArg
+  push bc
+  ld h,b
+  ld l,c
+  call GetGrammerStr
+  pop de    ;string to copy
+  pop hl    ;available space
+  scf
+  inc bc
+  sbc hl,bc
+  dec bc
+  jp c,ErrMem
+  pop hl    ;Where to copy the string to
+  ld (hl),FS_STR
+  push hl
+  inc hl
+  ex de,hl
+  ld a,b
+  or c
+  jr z,+_
+  push bc
+  ldir
+  pop bc
+_:
+  xor a
+  ld (de),a
+  inc bc
+  inc bc
+  pop hl
+  call FS_resize
+  ld b,h
+  ld c,l
+  ld l,(hl)
+  ld h,0
+  ld (ThetaPrimeVar),hl
+  ret
+
+func11: .db "ADDSTR",$29 \ .dw func4-$-2
+; This routine creates a list in the FS
+;
+;   ADDSTR ptr,ptr
+;
+  call ParseFullArg
+  push bc
+  push bc
+  call ParseNextFullArg
+  ;BC points to the second string
+  ld a,(bc)
+  cp FS_STR
+  jp nz,ErrMem      ;actually a syntax issue
+  ld h,b
+  ld l,c
+  dec hl
+  ld b,(hl)
+  dec hl
+  ld c,(hl)
+  inc hl
+  inc hl
+  ex (sp),hl
+  ;HL points to the first var
+  ;BC is the size of the second string
+  ld a,(hl)
+  cp FS_STR
+  jp nz,ErrMem      ;actually a syntax issue
+
+  dec hl
+  ld d,(hl)
+  dec hl
+  ld e,(hl)
+  inc hl
+  inc hl
+  push bc     ;size of str
+  push de
+  ex de,hl
+  add hl,bc
+  ld b,h
+  ld c,l
+  dec bc  ;Don't want to duplicate the type byte and ending null-byte
+  dec bc
+  ex de,hl
+  ;BC is the new size
+  call FS_resize
+  pop de
+  pop bc
+  add hl,de
+  pop de
+  ex de,hl
+  dec de    ;overwrite the ending null byte
+  inc hl    ;don't write the type byte
+  dec bc    ;not writing first byte
+  dec bc    ;skip writing last byte
+  ld a,b
+  or c
+  jr z,+_
+  ldir
+_:
+  ;Finish by writing a 0 to the end
+  ;Q: "But Zeda, why not just use the end byte of the second string?"
+  ;A: Trying concatenating a string to itself :P
+  xor a
+  ld (de),a
+  pop bc
+  ret
+
+
+func4: .db "GET",$29 \ .dw func5-$-2
+; This routine reads an element from a var
+;
+;   GET ptr,index[,index2[,index3[,...
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  ;HL points to the data
+  ret
+
+func5: .db "SET",$29 \ .dw func6-$-2
+; This routine sets the value of an element in a var
+;
+;   SET ptr,value,index[,index2[,index3[,...
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  ;HL points to the data
+  ret
+
+func6: .db "NAME",$29 \ .dw func7-$-2
+; This routine gets a pointer to a var by its name
+;
+;   NAME "name"
+;
+  call ParseFullArg
+  ld h,b
+  ld l,c
+  call GetGrammerText
+  ld h,d
+  ld l,e
+  add hl,bc
+  ld (hl),0
+  ex de,hl
+  call FS_findvar
+  ld b,h
+  ld c,l
+  ld l,(hl)
+  ld h,0
+  ld (ThetaPrimeVar),hl
+  inc bc
+  ret
+
+func7: .db "UINT8",0 \ .dw func8-$-2
+  ld bc,0
+  ret
+
+func8: .db "UINT16",0 \ .dw func9-$-2
+  ld bc,1
+  ret
+
+func9: .db "FLOAT",0 \ .dw mod_end-$-2
+  ld bc,2
+  ret
+
+mod_end:
+.echo $-mymodule," bytes"

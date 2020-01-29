@@ -1,0 +1,110 @@
+circle:
+;Input:
+; (B,C) is the center (x,y)
+; E is the radius, unsigned, less than 128 (0 or greater than 128 just quits).
+; IX points to a `plot` routine that takes (B,C)=(x,y) as input.
+
+  ld a,e
+  add a,a
+  ret c
+  ret z
+  ld l,e
+  dec a
+  ld e,a
+  dec a        ;if the pixel is only 1 wide, just plot the point
+  jp z,call_ix ;Jump to the plot routine
+  xor a
+  ld h,-1
+  ld d,1
+  scf     ;skip the first plot
+circleloop:
+  call nc,plot4
+  inc h
+  sub d
+  inc d
+  inc d
+  jr nc,circleloop
+_:
+  dec l
+  call plot4
+  add a,e
+  dec e
+  ret z
+  dec e
+  jr nc,-_
+  jp circleloop
+
+
+plot4:
+;BC is center
+;HL is x,y
+
+  push de
+  push af
+  ld a,(circle_pattern)
+  rlca
+  ld (circle_pattern),a
+  jr c,plot4_end
+  push hl
+  push bc
+
+;If H is 0, or L is 0, we need to draw only half
+  push hl
+
+  ld a,b
+  sub h
+  ld b,a
+  add a,h
+  add a,h
+  ld h,a
+
+  ld a,c
+  sub l
+  ld c,a
+  add a,l
+  add a,l
+  ld l,a
+
+;B is x0-x
+;C is y0-y
+;H is x0+x
+;L is y0+y
+
+
+;plot(x0-x,y0-y)
+;plot(x0+x,y0+y)
+  push bc
+  push hl
+  call call_ix    ;call the plot routine
+  pop bc
+  push bc
+  call call_ix    ;call the plot routine
+
+;now swap the y coords
+  pop hl
+  pop bc
+  ld a,l
+  ld l,c
+  ld c,a
+  pop de
+  xor a
+  cp d
+  jr z,+_
+  cp e
+  jr z,+_
+
+
+;plot(x0-x,y0+y)
+;plot(x0+x,y0-y)
+  push hl
+  call call_ix    ;call the plot routine
+  pop bc
+  call call_ix    ;call the plot routine
+_:
+
+  pop bc
+  pop hl
+plot4_end:
+  pop af
+  pop de
+  ret

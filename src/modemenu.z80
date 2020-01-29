@@ -1,0 +1,123 @@
+modemenu:
+
+;Set the font to the pixel-aligned font
+  ld a,2
+  ld (textmode),a
+
+  ld hl,modemenu_header
+  ld de,mode_menu_header_RAM
+  ld bc,6
+  ldir
+
+  ld (menutopinit),bc
+  ld (menudefault),bc
+
+  ld bc,$120D
+  ld de,$3B27
+  ld hl,mode_menu_header_RAM
+  ld ix,modemenu_getselect
+
+  call menuroutine
+
+;Set the font to the grid-aligned
+  xor a
+  ld (textmode),a
+  ret
+
+modemenu_getselect:
+  jr nc,modemenu_opt
+; If the user pressed [Enter], then we need to re-enter!
+  ld a,(k_save)
+  sub 9
+  ret nz
+  call +_
+  jp menu_render
+_:
+  ld a,(menucur)
+  dec a
+  jp z,toggle_token_hook
+  ld a,(flags+appLwrCaseFlag)
+  xor 1<<lwrCaseActive
+  ld (flags+appLwrCaseFlag),a
+  ret
+modemenu_opt:
+  ld a,c
+  cp 2
+  ccf
+  ret c
+  dec a
+  jr nz,+_
+  ld hl,s_Token_Hook
+  ld de,mode_menu_scrap
+  ld bc,11
+  ldir
+
+
+  bit tokenHookActive,(iy+hookflags3)
+  jr z,s_onoff
+  ;verify it is the same page as Grammer
+  ld hl,(tokenHookPtr+2)
+  in a,(6)
+  cp l
+  ld hl,s_Off
+  jr nz,$+5
+  ld hl,s_On
+  call mov4
+  ld hl,mode_menu_scrap
+  or a
+  ret
+
+_:
+  ld hl,s_Lowercase
+  ld de,mode_menu_scrap
+  ld bc,10
+  ldir
+  bit lwrCaseActive,(iy+appLwrCaseFlag)
+s_onoff:
+; z means OFF, nz means ON
+  ld hl,s_On
+  jr nz,$+5
+  ld hl,s_Off
+  call mov4
+  ld hl,mode_menu_scrap
+  ret
+
+toggle_token_hook:
+;Gotta toggle the token hook
+;Point to the page and load the token hook page in A
+  ld hl,tokenHookPtr+2
+  in a,(6)
+
+;If token hook is inactive, we need to set it to Grammer's
+  bit tokenHookActive,(iy+hookflags3)
+  jr z,tokenhook_on
+
+;The token hook is active.
+;If it is Grammer's, need to reset
+  cp (hl)
+  jr z,resetTokenHook
+
+tokenhook_on:
+;Now we have to actually set the hook
+;We'll do it manually, I still have flashbacks to thepenguin77's April Fools Joke of 2011
+;HL already points to where the page should be written, and A is the page
+  ld (hl),a
+  ld hl,TokenHook
+  ld (tokenHookPtr),hl
+  set tokenHookActive,(iy+hookflags3)
+  ret
+resetTokenHook:
+  res tokenHookActive,(iy+hookflags3)
+  ret
+
+
+modemenu_header:
+  .db "MODES",0
+s_Lowercase:
+  .db "LOWERCASE",$29,0
+s_Token_Hook:
+  .db "TOKEN",$29,"HOOK",$29,0
+s_On:
+  .db "ON",0
+s_Off:
+  .db "OFF",0

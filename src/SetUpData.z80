@@ -1,0 +1,79 @@
+SetUpData:
+  bcall(_RunIndicOff)
+  call setup_readarc
+
+;initialize the float rand routine
+  ld hl,randinit
+  ld (next_page_call_address),hl
+  call next_page_call
+
+  ld hl,floatstack_bottom
+  ld (floatstack_ptr),hl
+  ld hl,seed2+1
+  set 6,(hl)
+  dec l
+  dec l
+  ld a,r \ xor (hl) \ ld (hl),a
+  ld hl,plotSScreen
+  ld (BufPtr),hl
+  ld (GrayBufPtr),hl
+  ld hl,PBuf
+  ld (PBufPtr),hl
+  ld hl,766
+  ld (PBuf),hl
+  ld a,3
+  ld (OutputLogic),a
+  ld (TextPauseTime),a
+  ld hl,FontSet
+  ld (FontPointer),hl
+  xor a
+  ld (font_ptr_page),a
+  ld (module_count),a
+  ld h,a
+  ld l,a
+  ld (flags+33),a
+  ld (flags+34),hl
+  ld (IntLoc),hl
+  ld (PBufType),hl
+  ld (textmode),a
+  ld hl,$0155
+  ld (GrayMask),hl
+
+  ld hl,saveSScreen+256
+  ld (stack_base),hl
+  ld (stack_ptr),hl
+  inc h
+  inc h
+  ld (stack_top),hl
+
+  ld hl,textShadow
+  ld (input_base),hl
+  ld hl,128
+  ld (input_size),hl
+
+
+#ifndef INCLUDE_GRAMPKG
+;Verify the grammer package
+  ld hl,verify_package
+  ld (next_page_call_address),hl
+  ld hl,s_grampkg
+  rst rMov9ToOP1
+  bcall(_ChkFindSym)
+  ld a,b
+  ld b,0
+  call nc,next_page_call
+  jr nc,+_
+  set nogrampkg,(iy+InternalFlags)
+_:
+#endif
+
+  pop hl
+  ld (SPSave),sp
+  jp (hl)
+setupRAMdata:
+;not speed critical
+  ld de,8100h
+  ld hl,RAMCodeStart
+  ld bc,RAMCodeEnd-RAMCodeStart
+  ldir
+  ret

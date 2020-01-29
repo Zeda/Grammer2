@@ -1,0 +1,88 @@
+;===============================================================
+GraphToLCD:
+;===============================================================
+  ld hl,(BufPtr)
+  ld ix,(GrayBufPtr)
+;===============================================================
+BufferToLCD:
+;===============================================================
+;Input:
+;     HL points to the buffer to copy to the LCD
+;Outputs:
+;
+;===============================================================
+  di
+  LCDDelay()
+  ld a,$80
+  out (16),a
+  exx
+  ld hl,(GrayMask)
+  add hl,hl
+  jr nc,$+4
+  set 4,l
+  ld (GrayMask),hl
+  ld bc,(textmode)
+  ld a,3
+  and c
+  ld c,a
+  exx
+  ld de,12
+
+  LCDDelay()
+  ld a,$20
+col:
+  push af
+  pop af
+  out (10h),a
+  push af
+  ld b,64
+row:
+;(checker AND gray) OR black
+;
+  exx
+  add hl,hl
+  jr nc,$+4
+  set 4,l
+  ld a,h
+  exx
+  ld c,a
+  ld a,(ix)
+  xor (hl)
+  and c
+  xor (hl)
+  add hl,de
+  add ix,de
+  bit InvertLCDFlag,(iy+UserFlags)
+  jr z,$+3
+  cpl
+  ex af,af'
+  LCDDelay()
+  ex af,af'
+  out ($11),a
+  exx
+  ld b,c
+  inc b
+  dec b
+  jr z,RotateDone
+RotateMask:
+  add hl,hl
+  jr nc,$+4
+  set 4,l
+  ld a,h
+  djnz RotateMask
+RotateDone:
+  exx
+  djnz row
+  pop af
+  inc a
+  dec h
+  dec h
+  dec h
+  inc hl
+  dec ixh
+  dec ixh
+  dec ixh
+  inc ix
+  cp $2c
+  jp nz,col
+  ret
