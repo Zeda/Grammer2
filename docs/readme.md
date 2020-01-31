@@ -645,7 +645,6 @@ syntax that tilemaps are stored (stored in rows).
 | Fix Text(    | Use this to set the typewriter delay. The larger the number, the slower the typewriter text is displayed.
 | Fix          | See description below.
 | Full         | This is used to set 15MHz mode. Alternatively, if you add a number to the end `Full0` sets 6MHz, `Full1` sets 15MHz, `Full2` toggles the speed. 15MHz is only set if it is possible for the calc. This returns `0` if the previous speed setting was 6MHz, `1` if it was 15MHz.
-
 | Output(      | See description below.
 
 ### Fix
