@@ -396,6 +396,7 @@ VPutC_OS_small:
   ld b,a
   ld a,3
   call OS_font_sub
+  inc de
   jp VputSCStepIn
 _:
   ld hl,$0600
