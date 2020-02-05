@@ -948,8 +948,8 @@ routines will scroll the screen, scrolling in the new data. Available commands:
   - `dir` is 1 for down, 2 for left, 4 for right, 8 for up. To shift up+left,
   you can use a `dir` of 8+2 = 10.
 
-An easy way to remember the order of the directions is that the follow the order
-of the getKey codes.
+An easy way to remember the order of the directions is that they follow the
+order of the getKey codes.
 
 #### Get Tile, Set Tile
 You can read a tile number based on its map coordinates, or set a tile based on
