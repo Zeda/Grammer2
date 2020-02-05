@@ -1,5 +1,5 @@
 #define Text() call p1_PutTokenText
-#define FONT_HEIGHT 6
+font_height = tempword5
 ;#define TEXT_PAD_TOP    ;comment if there is not a row of padding above the text
 ;#define TEXTCOORD_YX      ;define if textcoord is Y then X (TI-OS is Y then X for small font, large font and some custom text routines use the opposite)
 textcoord = textRow
@@ -99,9 +99,9 @@ menuroutine:
   call draw_header
   pop bc
 
-
 ;Before we do too much, let's establish the top-left textbox boundaries.
-  ld a,FONT_HEIGHT+2
+  ld a,(font_height)
+  add a,2
   add a,c
   ld c,a
   ld (textbox_top),bc
@@ -113,7 +113,7 @@ menuroutine:
   ld hl,(menudefault)
   ld (menucur),hl
 
-  ;need t set menu selection to:
+  ;need to set menu selection to:
   ;   (textbox_top-1)+(menucur-menutop)*fontheight
   ;  =(textbox_top-1)+(HL-DE)*fontheight
   ; or a
@@ -160,7 +160,9 @@ menu_render_0:
   ld a,h
   sub b
   ld d,a
-  ld e,FONT_HEIGHT+1
+  ld a,(font_height)
+  ld e,a
+  inc e
   dec d
   push de
   push bc
@@ -214,35 +216,37 @@ menu_render_sub_loop:
   pop bc
   ret c
   ld de,(textcoord)
-  push de
   push bc
+  push de
   Text()
-  pop bc
   pop de
+  ld a,(font_height)
+  ld c,a
 #ifdef TEXTCOORD_YX
-  ld a,FONT_HEIGHT
   add a,d
   ld d,a
   ld a,(textbox_bottom)
+  sub c
 #ifdef TEXT_PAD_TOP
-  sub FONT_HEIGHT+2
+  sub 2
 #else
-  sub FONT_HEIGHT+1
+  dec a
 #endif
   cp d
 #else
-  ld a,FONT_HEIGHT
   add a,e
   ld e,a
   ld a,(textbox_bottom)
+  sub c
 #ifdef TEXT_PAD_TOP
-  sub FONT_HEIGHT+2
+  sub d
 #else
-  sub FONT_HEIGHT+1
+  dec a
 #endif
   cp e
 #endif
   ld (textcoord),de
+  pop bc
   inc bc
   jr nc,menu_render_sub_loop
   ret
@@ -289,7 +293,11 @@ menu_up:
   ld hl,(textbox_top)
   cp l
   jr z,+_
-  sub FONT_HEIGHT
+  ld e,a
+  ld a,(font_height)
+  ld d,a
+  ld a,e
+  sub d
   ld (menuselection),a
   scf
   ret
@@ -311,13 +319,17 @@ menu_down:
   pop hl
   ret c
   ld (menucur),hl
-
+  ld a,(font_height)
+  ld e,a
   ld a,(menuselection)
-  add a,FONT_HEIGHT+FONT_HEIGHT+1
+  add a,e
+  add a,e
+  inc a
   ld hl,(textbox_bottom)
   cp l
   jr nc,+_
-  sub FONT_HEIGHT+1
+  sub e
+  dec a
   ld (menuselection),a
   scf
   ret
@@ -333,7 +345,7 @@ menu_scroll:
 
   push af
   call gettextbox
-  ld h,FONT_HEIGHT
+  ld hl,(font_height-1)
   pop af
 _:
   push af
@@ -424,7 +436,9 @@ draw_header:
   sub b
   ld d,a
   dec b
-  ld e,FONT_HEIGHT+1
+  ld a,(font_height)
+  ld e,a
+  inc e
   rect_Erase()
 
 

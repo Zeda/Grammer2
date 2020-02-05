@@ -177,6 +177,11 @@ jp_prev_page_call:
   pop hl
   jp prev_page_call
 
+p1_chardim:
+  ld hl,chardim
+  ld (prev_page_call_address),hl
+  jp prev_page_call
+
 verify_package:
 ;A:HL points to the data
 ;BC is the size of the data

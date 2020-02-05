@@ -191,6 +191,13 @@ inputflag       = 0
 ModeFlags2      = 35
 floatmode       = 5
 
+textmode_default  = 0
+textmode_varwidth = 1
+textmode_smallfixed=2
+textmode_Omnicalc = 3
+textmode_OS_small = 4
+textmode_OS_large = 5
+
 
 FS_uint8        = 0
 FS_str          = 3
