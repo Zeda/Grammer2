@@ -16,7 +16,8 @@ menu_num_items  = menuMem+17  ;2 bytes
 menu_get        = menuMem+19
 menu_sel        = menuMem+21
 menu_temp       = menuMem+23
-menuopts        = menuMem+25
+menu_header_get = menuMem+25
+menuopts        = menuMem+27
 menudefault     = TempWord1
 menutopinit     = TempWord4
 
@@ -177,6 +178,8 @@ _:
   ld d,a
 
   ld ix,menu_command_lookup
+  ld hl,menu_header_getter
+  ld (menu_header_get),hl
 
 menu_entry:
   ;Set the default graphics buffer
@@ -212,6 +215,12 @@ _:
 
 fancymenu:
 ;header,y,x,h,w,get,sel
+  inc hl
+  ld a,(hl)
+  cp $AE
+  push af
+  jr nz,$+5
+  ld (parsePtr),hl
   call p1_ParseNextFullArg
   ld (menuheader_ptr),bc
 
@@ -244,8 +253,15 @@ fancymenu:
   ld (menudefault),hl
 
   pop de
+
+  pop af
+  ld hl,menu_header_getter
+  jr nz,$+5
+  ld hl,menu_header_get_cb
+  ld (menu_header_get),hl
+
   ld ix,fancymenu_lookup
-  jr menu_entry
+  jp menu_entry
 
 
 menu_err:
@@ -336,4 +352,60 @@ menu_command_lookup:
 menu_command_select:
   ld bc,(menucur)
   inc bc
+  ret
+
+menu_header_get_cb:
+;save the current parsePtr
+  ld hl,(parsePtr)
+  push hl
+
+;save Ans and replace with the current cursor
+  ld hl,(Ans)
+  push hl
+
+;save thetaprime
+  ld hl,(ThetaPrimeVar)
+  push hl
+
+;Save the text coordinates
+  ld hl,(TextRow)
+  push hl
+
+;Set "Ans"
+  ld c,a
+  ld b,0
+
+;now set the location to start parsing at
+  ld hl,(menuheader_ptr)
+  ld (parsePtr),hl
+
+;set Ans
+  ld (Ans),bc
+
+;Now parse
+  call p1_ParserNext
+
+;Restore text coordinates
+  pop hl
+  ld (TextRow),hl
+
+;restore thetaprimevar
+  pop hl
+  ld (ThetaPrimeVar),hl
+
+;restore Ans
+  pop hl
+  ld (Ans),hl
+
+;restore parsePtr
+  pop hl
+  ld (parsePtr),hl
+
+;return 0 if failed
+  ld h,b
+  ld l,c
+  ld a,b
+  or c
+  ret nz
+  ld hl,s_null
   ret

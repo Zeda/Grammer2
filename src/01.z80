@@ -17,6 +17,8 @@ p1_GraphToLCD:
 
 call_ix_01:
   jp (ix)
+p1_call_hl:
+  jp (hl)
 
 pixelOn_pattern:
   call getpixelloc

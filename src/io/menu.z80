@@ -263,15 +263,12 @@ menu_arrow:
 ;check arrow keys
   dec a
   jr z,menu_down
-  sub 3
-  scf
+  dec a
+  jp z,menu_left
+  dec a
+  jp z,menu_right
+  add a,-1      ;sets the carry flag if it is not a keypress
   ret nz
-  ; dec a
-  ; jr z,menu_left
-  ; dec a
-  ; jr z,menu_right
-  ; add a,-1      ;sets the carry flag if it is not a keypress
-  ; ret nz
 
 ;if would select oob
 ;   if next element exists
@@ -393,17 +390,26 @@ gettextbox:
   dec b
   ret
 ;These change to the next menu header
-; menu_left:
-
-  ; ld a,(menuheader_cur)
-  ; dec a
-  ; jr +_
-; menu_right:
-;   ld a,(menuheader_cur)
-;   inc a
-; _:
-;   ld (menuheader_cur),a
-;   call reset_menu_cursor
+menu_left:
+  ld a,(menuheader_cur)
+  dec a
+  ld hl,(menu_header_get)
+  call p1_call_hl
+  ret z
+  ld a,(menuheader_cur)
+  dec a
+  jr +_
+menu_right:
+  ld a,(menuheader_cur)
+  inc a
+  ld hl,(menu_header_get)
+  call p1_call_hl
+  ret z
+  ld a,(menuheader_cur)
+  inc a
+_:
+  ld (menuheader_cur),a
+  call reset_menu_cursor
 
 draw_header:
 ;Set up textcoord
@@ -443,38 +449,18 @@ draw_header:
 
 
 ;Verify that the header element is valid, wrap if needed
-  ld hl,(menuheader_ptr)
-;   ld a,(menuheader_cur)
-;   cp (hl)
-;   jr c,+_
-;   inc a
-;   jr nz,$+5
-;   ;cycle to the last header
-;   ld a,(hl)
-;   dec a
-;   .db $FE
-;   ;cycle to the first header
-;   xor a
-;   ld (menuheader_cur),a
-; _:
-;
-; ;A is the header to seek
-;   ld bc,0   ;using CPIR, want to make sure it doesn't exit too soon!
-;   inc hl    ;point to the first header
-;   or a
-;   jr draw_header_loopend
-; draw_header_loop:
-;   push af
-;   xor a
-;   cpir
-;   pop af
-;   dec a
-; draw_header_loopend:
-;   jr nz,draw_header_loop
+  ld a,(menuheader_cur)
+  ld hl,(menu_header_get)
+  call p1_call_hl
 
 ;now draw the header
   Text()
   or a
+  ret
+
+menu_header_getter:
+  ld hl,(menuheader_ptr)
+  xor a
   ret
 
 reset_menu_cursor:
