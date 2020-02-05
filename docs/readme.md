@@ -687,7 +687,6 @@ syntax that tilemaps are stored (stored in rows).
 | Fix Text(    | Use this to set the typewriter delay. The larger the number, the slower the typewriter text is displayed.
 | Fix          | See description below.
 | Full         | This is used to set 15MHz mode. Alternatively, if you add a number to the end `Full0` sets 6MHz, `Full1` sets 15MHz, `Full2` toggles the speed. 15MHz is only set if it is possible for the calc. This returns `0` if the previous speed setting was 6MHz, `1` if it was 15MHz.
-
 | Output(      | See description below.
 
 ### Fix
@@ -802,7 +801,7 @@ I have to give special thanks to Yeongjin Nam for their work on writing a
 better tutorial for Grammer and as well Louis Becquey (persalteas) for their work on
 writing a french readme/tutorial. Both of them have also made many valuable
 suggestions that have helped make Grammer what it is right now. Thanks much!
-Thanks to GModder for the suggestions and (many) bug reports that I would not have found otherwise!
+Thanks to @NonstickAtom785 for the suggestions and (many) bug reports that I would not have found otherwise!
 
 I also thank Hans Burch for reconstructing Grammer 2 after I lost my work. It must have been a tremendous amount of effort and tedium, and I greatly appreciate it. They've continued to provide valuable feedback about bugs and it has been extremely helpful.
 
