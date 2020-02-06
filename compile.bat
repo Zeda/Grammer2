@@ -10,13 +10,15 @@ if exist spasm.exe (
 
 cd src
 
+rem Generates the jumptable and grammer2.5.inc file together.
+  echo "Generating grammer2.5.inc"
+  python ..\tools\jt.py jmptable.z80 grammer2.5.inc
+  copy /Y grammer2.5.inc ..\docs\grammer2.5.inc
+
 :Grammer
-  set /P c=Compile Gramme?(Y/N)
+  set /P c=Compile Grammer?(Y/N)
   if /I "%c%" EQU "Y" (
 
-    echo "Generating grammer2.5.inc"
-    python ..\tools\jt.py jmptable.z80 grammer2.5.inc
-    copy grammer2.5.inc ..\docs\grammer2.5.inc
     echo "Assembling App"
     ..\spasm.exe grammer.z80 ..\bin\grammer.8xk -I ..\z80float\single
     
