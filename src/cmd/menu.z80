@@ -16,7 +16,8 @@ menu_num_items  = menuMem+17  ;2 bytes
 menu_get        = menuMem+19
 menu_sel        = menuMem+21
 menu_temp       = menuMem+23
-menuopts        = menuMem+25
+menu_header_get = menuMem+25
+menuopts        = menuMem+27
 menudefault     = TempWord1
 menutopinit     = TempWord4
 
@@ -105,16 +106,32 @@ _:
 ;Save the number of elements
   ld (menu_num_items),bc
 
+  push bc
+  call p1_chardim
+  ld a,c
+  ld (font_height),a
+  pop bc
+  ld l,a
+
 ;Now we need to render the menu, but first we'll get the height of the menu in pixels
 ;4+font_height*min(9-int(y/font_height),BC+1
+
+;60/font_height-1 is the initial E value
+  ld a,59
+  ld e,-1
+
+  inc e
+  sub l
+  jr nc,$-2
+
   ld a,(textbox_top)
-  ld e,9
   add a,a
   jr c,cmp_menu_height
+  sla l
   .db $FE
 _:
   dec e
-  sub FONT_HEIGHT*2
+  sub l
   jr nc,-_
 cmp_menu_height:
 ;E is the max height
@@ -148,8 +165,9 @@ _:
   ld (menutopinit),hl
 
 ;now do E*FONT_HEIGHT+4, given that it won't overflow 8 bits
+  ld a,(font_height)
+  ld b,a
   ld a,5
-  ld b,FONT_HEIGHT
 _:
   add a,e
   djnz -_
@@ -160,24 +178,28 @@ _:
   ld d,a
 
   ld ix,menu_command_lookup
+  ld hl,menu_header_getter
+  ld (menu_header_get),hl
 
 menu_entry:
   ;Set the default graphics buffer
-  ld hl,(BufPtr)
-  ld (gbuf_temp),hl
-
+  ; ld hl,(BufPtr)
+  ; ld (gbuf_temp),hl
 
 ;save and set the the font method
   ld a,(textmode)
+  or a
   push af
-  ld a,2
-  ld (textmode),a
   ld hl,(FontPointer)
   push hl
+  jr nz,+_
+  ld a,2
+  ld (textmode),a
   ld hl,FontSet
   ld (FontPointer),hl
   xor a
   ld (font_ptr_page),a
+_:
   ld bc,(textbox_top)
   ld hl,(menuheader_ptr)
 
@@ -193,6 +215,12 @@ menu_entry:
 
 fancymenu:
 ;header,y,x,h,w,get,sel
+  inc hl
+  ld a,(hl)
+  cp $AE
+  push af
+  jr nz,$+5
+  ld (parsePtr),hl
   call p1_ParseNextFullArg
   ld (menuheader_ptr),bc
 
@@ -216,13 +244,24 @@ fancymenu:
   call p1_ParseNextFullArg
   ld (menu_sel),bc
 
+  call p1_chardim
+  ld a,c
+  ld (font_height),a
+
   ld hl,0
   ld (menutopinit),hl
   ld (menudefault),hl
 
   pop de
+
+  pop af
+  ld hl,menu_header_getter
+  jr nz,$+5
+  ld hl,menu_header_get_cb
+  ld (menu_header_get),hl
+
   ld ix,fancymenu_lookup
-  jr menu_entry
+  jp menu_entry
 
 
 menu_err:
@@ -313,4 +352,60 @@ menu_command_lookup:
 menu_command_select:
   ld bc,(menucur)
   inc bc
+  ret
+
+menu_header_get_cb:
+;save the current parsePtr
+  ld hl,(parsePtr)
+  push hl
+
+;save Ans and replace with the current cursor
+  ld hl,(Ans)
+  push hl
+
+;save thetaprime
+  ld hl,(ThetaPrimeVar)
+  push hl
+
+;Save the text coordinates
+  ld hl,(TextRow)
+  push hl
+
+;Set "Ans"
+  ld c,a
+  ld b,0
+
+;now set the location to start parsing at
+  ld hl,(menuheader_ptr)
+  ld (parsePtr),hl
+
+;set Ans
+  ld (Ans),bc
+
+;Now parse
+  call p1_ParserNext
+
+;Restore text coordinates
+  pop hl
+  ld (TextRow),hl
+
+;restore thetaprimevar
+  pop hl
+  ld (ThetaPrimeVar),hl
+
+;restore Ans
+  pop hl
+  ld (Ans),hl
+
+;restore parsePtr
+  pop hl
+  ld (parsePtr),hl
+
+;return 0 if failed
+  ld h,b
+  ld l,c
+  ld a,b
+  or c
+  ret nz
+  ld hl,s_null
   ret

@@ -382,8 +382,9 @@ Or to jump backwards:
 | getKey       | This returns a value from 0 to 56 that is the current key press. You can use [this chart](#keycodes) for values.
 | getKey(      | `getKey(` will allow you to see if a key is being pressed. For example, `getKey(9` will return `1` if enter is pressed
 | Input        | This allows you to input a string. The pointer to the string is returned. (this is not a permanent location, the data will be overwritten the next time Input is used). To get a value input from the user, you can use `expr(` : `expr(Input →A`. This will store the result to A. `Input` can also take an optional string input. The input string will be displayed after what the user is typing. If you execute this code, I think it'll explain it better. It's honestly pretty cool for a calculator. **See below for information on the [Input vars!](#input-vars)**
-| Menu(        | ~~*This may require the included appvar, GramPkg, to be on your calc (in RAM or archived).*~~ Syntax is, `Menu(y,x,w,"Title","Item0","Item1","Item2","Exit`. It basically makes a pop-up style menu, returning the number of the selected item. Returns 0 if exited due to `[CLEAR]` or `[ON]`. ***Note:** you can append an optional last argument that starts with `'` to specify a default option. For example, if the last argument is `'3` then the third option will be selected by default.*
-| Menu('       | Draws a menu that queries Grammer subroutines for the content to render. Syntax is `Menu('"Title",y,x,height,width,GET_ELEMENT_ptr,SELECT_ELEMENT_ptr`. The subroutine for GET_ELEMENT will receive the index in Ans. Return 0 if out-of-bounds, else return a pointer to the string to draw. The subroutine for SELECT_ELEMENT will receive the index in Ans. Modify this as you want, the result will be returned as the result of the menu. Returns 0 if exited due to `[CLEAR]` or `[ON]`. |
+| Menu(        | ~~*This may require the included appvar, GramPkg, to be on your calc (in RAM or archived).*~~ Syntax is, `Menu(y,x,w,"Title","Item0","Item1","Item2","Exit`. It basically makes a pop-up style menu, returning the number of the selected item. Returns 0 if exited due to `[CLEAR]` or `[ON]`. ***Note:** you can append an optional last argument that starts with `'` to specify a default option. For example, if the last argument is `'3` then the third option will be selected by default.* ***NOTE:** You can't use font mode 0 for this; instead the menu routine will convert to font mode 2.*
+| Menu('       | Draws a menu that queries Grammer subroutines for the content to render. Syntax is `Menu('"Title",y,x,height,width,GET_ELEMENT_ptr,SELECT_ELEMENT_ptr`. The subroutine for GET_ELEMENT will receive the index in Ans. Return 0 if out-of-bounds, else return a pointer to the string to draw. The subroutine for SELECT_ELEMENT will receive the index in Ans, and the header number in `Ɵ'`. Modify this as you want, the result will be returned as the result of the menu. Returns 0 if exited due to `[CLEAR]` or `[ON]`. ***NOTE:** You can't use font mode 0 for this; instead the menu routine will convert to font mode 2.*|
+| Menu(''      | This works like `Menu('`, but when you put `'` in front of the header argument, `Menu('` will instead interpret it as a pointer to a routine. The routine will take a value in Ans, the current header, and that routine should return the appropriate string. Return 0 if out-of-bounds. |
 | Ans          | This will return the value of the previous line.
 | expr(        | This will compute a string as a line of code (useful with `Input`). **See below for more info on [`expr(`](#expr-examples)!**
 | inString(    | This is similar to the TI-BASIC command. This will return the location of a sub-string. The inputs are where to start searching and the string to search for: `inString(SearchStart,SearchString[,maxlength]`. The size of the input string is returned in `Ɵ'` and if there was no match found, 0 is returned.
@@ -397,28 +398,69 @@ Menu(1,1,16,"Title","ITEM 1","ITEM 2","ITEM 3→M
 
 And here is an example using callbacks:
 ```
-Lbl "GET→A
-Lbl "SEL→B
-Menu('"Title",2,33,59,30,A,B→M
-Text('0,0,M
-Stop
-
-
-.GET
-→X<26
-If !
-End
-"ITEM A→Z
-int(Z+5,X+65
-Z
-End
-
-
-.SEL
-+1
-End
+:Lbl "GET→A
+:Lbl "SEL→B
+:Menu('"HEAD",2,33,59,30,A,B→M
+:Text('0,0,M
+:Stop
+:
+:.GET
+:→X<26
+:If !
+:End
+:"ITEM A→Z
+:int(Z+5,X+65
+:Z
+:End
+:
+:.SEL
+:+1
+:End
 ```
 
+Or a more complicated menu that has three headers (use left/right):
+```
+:Lbl "GET→A
+:Lbl "SEL→B
+:Lbl "HEAD→C
+:Menu(''C,2,28,59,40,A,B→M
+:Text('0,0,M
+:Stop
+:
+:
+:.HEAD
+:→X<3
+:If !
+:End
+:If X=0
+:" STRING>
+:If X=1
+:"<PIC>
+:If X=2
+:"<GDB
+:End
+:
+:
+:.GET
+:→X<10
+:If !
+:End
+:Ɵ'
+:If =0
+:"Str
+:If =1
+:"Pic0
+:If =2
+:"GDB0
+:→Z
+:int(+3,X+48
+:Z
+:End
+:
+:.SEL
+:+1
+:End
+```
 
 
 ### Input Vars!
@@ -645,7 +687,6 @@ syntax that tilemaps are stored (stored in rows).
 | Fix Text(    | Use this to set the typewriter delay. The larger the number, the slower the typewriter text is displayed.
 | Fix          | See description below.
 | Full         | This is used to set 15MHz mode. Alternatively, if you add a number to the end `Full0` sets 6MHz, `Full1` sets 15MHz, `Full2` toggles the speed. 15MHz is only set if it is possible for the calc. This returns `0` if the previous speed setting was 6MHz, `1` if it was 15MHz.
-
 | Output(      | See description below.
 
 ### Fix
@@ -760,7 +801,7 @@ I have to give special thanks to Yeongjin Nam for their work on writing a
 better tutorial for Grammer and as well Louis Becquey (persalteas) for their work on
 writing a french readme/tutorial. Both of them have also made many valuable
 suggestions that have helped make Grammer what it is right now. Thanks much!
-Thanks to GModder for the suggestions and (many) bug reports that I would not have found otherwise!
+Thanks to @NonstickAtom785 for the suggestions and (many) bug reports that I would not have found otherwise!
 
 I also thank Hans Burch for reconstructing Grammer 2 after I lost my work. It must have been a tremendous amount of effort and tedium, and I greatly appreciate it. They've continued to provide valuable feedback about bugs and it has been extremely helpful.
 

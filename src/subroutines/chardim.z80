@@ -5,12 +5,14 @@ chardim:
 ;Destroys: A
   ld b,a
   ld a,(textmode)
+  or a
+  jr z,grammer_small_size
   dec a
   jr z,var_width_size
   dec a
-  jr z,OS_large_size
-  dec a
   jr z,grammer_small_size
+  dec a
+  jr z,OS_large_size
   dec a
   jr z,OS_small_size
 OS_large_size:

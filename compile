@@ -17,3 +17,9 @@ if [ ! -f "experimental/experimental.z80" ];then
   echo -e "\e[1m\e[37mAssembling Experimental Package\e[0m"
   spasm experimental/experimental.z80 ../bin/EXPRMNTL.8xv -I single
 fi
+
+# Check for the program launcher
+if [ ! -f "../bin/g250.8xp" ];then
+  echo -e "\e[1m\e[37mAssembling Program Launcher\e[0m"
+  spasm launch.z80 ../bin/g250.8xp
+fi

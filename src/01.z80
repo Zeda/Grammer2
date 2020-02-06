@@ -17,6 +17,8 @@ p1_GraphToLCD:
 
 call_ix_01:
   jp (ix)
+p1_call_hl:
+  jp (hl)
 
 pixelOn_pattern:
   call getpixelloc
@@ -175,6 +177,11 @@ p1_getKeyDebounce:
 jp_prev_page_call:
   ld (prev_page_call_address),hl
   pop hl
+  jp prev_page_call
+
+p1_chardim:
+  ld hl,chardim
+  ld (prev_page_call_address),hl
   jp prev_page_call
 
 verify_package:

@@ -1,0 +1,37 @@
+; This program launches Grammer2.
+; If the input is a string, this assumes it is the name of the program to execute.
+; Otherwise, this starts an in-line parser.
+
+#include "grammer2.5.inc"
+_FindApp        = 4C4Eh
+.db $BB,$6D
+.org $9D95
+
+; move the app name into OP1
+  ld hl,app_name
+  rst rMov9ToOP1
+
+  bcall(_FindApp) ; locate the app
+  ret c           ; exit if it isn't found
+
+; Now A is the page that the app is on, but we need to save the current page so
+; that we can restore it later.
+  ld b,a              ; save A
+  in a,(6)            ; Get the current page
+  ld (page_restore),a ; save it to our restore location (self-modifying code)
+  ld a,b              ; get the app's page in A again
+  out (6),a           ; write the app's page
+
+; Grammer already contains a routine to parse Ans and execute code accordingly,
+; so all we need to do is call ProgramAccessStart
+  call ProgramAccessStart
+
+;restore the page
+  .db $3E     ;start of `ld a,*`
+page_restore:
+  .db 0       ;dummy value, this gets overwritten
+  out (6),a
+  ret
+
+app_name:
+  .db $14,"Grammer",0

@@ -27,6 +27,9 @@ tmap_scroll_left:
   ld a,(hl)
   cp $2B
   call z,p1_ParseNextFullArg
+  inc c
+  dec c
+  ret z
   ld b,c
 tmap_scroll_left_loop:
 _:
@@ -40,6 +43,9 @@ tmap_scroll_right:
   ld a,(hl)
   cp $2B
   call z,p1_ParseNextFullArg
+  inc c
+  dec c
+  ret z
   ld b,c
 tmap_scroll_right_loop:
 _:
@@ -53,6 +59,9 @@ tmap_scroll_down:
   ld a,(hl)
   cp $2B
   call z,p1_ParseNextFullArg
+  inc c
+  dec c
+  ret z
   ld b,c
 tmap_scroll_down_loop:
 _:
@@ -66,6 +75,9 @@ tmap_scroll_up:
   ld a,(hl)
   cp $2B
   call z,p1_ParseNextFullArg
+  inc c
+  dec c
+  ret z
   ld b,c
 tmap_scroll_up_loop:
 _:
@@ -83,6 +95,9 @@ tmap_scroll:
   ld c,1
   call z,p1_ParseNextFullArg
   pop af
+  inc c
+  dec c
+  ret z
   ld b,c
 
   rrca

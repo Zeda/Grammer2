@@ -81,7 +81,7 @@ _:
 ProgramAccessStart:
   bcall(_RclAns)
   sub 4
-  jr nz,grazh
+  jr nz,begin_parse
   ex de,hl
   ld c,(hl)
   inc hl
@@ -112,7 +112,7 @@ parse_via_ptr:
   ld (progEnd),hl
   ld h,a \ ld l,a
   ld (parseError),hl
-grazh:
+begin_parse:
 #ifdef include_interrupt
   di
   ld a,11
