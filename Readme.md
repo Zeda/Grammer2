@@ -21,6 +21,6 @@ Windows, @NonstickAtom785 has built the fixed version and posted it [here](https
 From the command line, run `./compile`
 
 ## Windows:
-Download Windows [`spasm-ng`](https://github.com/alberthdev/spasm-ng/releases) release, rename it to `spasm.exe` and place it in the project directory. From command prompt or powershell cd to the project directory and run `compile.bat`.
+Download the Windows [`spasm-ng`](https://github.com/alberthdev/spasm-ng/releases) release, rename it to `spasm.exe` and place it in the project directory. From command prompt do `compile` (or if you prefer powershell... do `./compile`). Read the above note if you are getting errors.
 
 This generates the jump table and compiles the app and Grammer package.
