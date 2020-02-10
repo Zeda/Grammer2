@@ -20,7 +20,7 @@ rem Generates the jumptable and grammer2.5.inc file together.
     ..\spasm.exe grammer.z80 ..\bin\grammer.8xk -I ..\z80float\single
 
 rem If the second command line argument is -ca then compile everything else.
-if "%1"=="-ca" (
+if "%1"=="a" (
     echo "Assembling Default Package"
     ..\spasm.exe grampkg.z80 ..\bin\grampkg.8xv
 
