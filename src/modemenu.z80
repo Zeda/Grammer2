@@ -1,27 +1,41 @@
 modemenu:
-
 ;Set the font to the pixel-aligned font
   ld a,2
   ld (textmode),a
 
-  ld hl,modemenu_header
-  ld de,mode_menu_header_RAM
+
+  ld hl,modemenu_header+5
+  ld de,mode_menu_header_RAM+5
   ld bc,6
-  ldir
+  ld a,c
+  ld (font_height),a
+  lddr
 
   ld (menutopinit),bc
   ld (menudefault),bc
 
+  ld hl,menu_header_getter
+  ld (menu_header_get),hl
+
+  ex de,hl
+  inc hl
   ld bc,$120D
   ld de,$3B27
-  ld hl,mode_menu_header_RAM
   ld ix,modemenu_getselect
 
   call menuroutine
 
-;Set the font to the grid-aligned
   xor a
   ld (textmode),a
+  ret
+
+mode_menu_header_getter:
+  or a
+  jr z,$+4
+  xor a
+  ret
+  ld hl,mode_menu_header_RAM
+  or h
   ret
 
 modemenu_getselect:

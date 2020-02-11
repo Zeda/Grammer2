@@ -45,6 +45,8 @@ menuroutine:
 ;   HL points to the header
 ;   IX points to the get/select code
 ;     If you are using the TI-OS VPutS routine, you'll need to have the textWrite flag set in sGrFlags
+;   (font_height) is the height of the font
+;   (menu_header_get) points to a routine that fetches the menu header.
 ;Notes:
 ;   The header is set up as follows:
 ;       .db number_of_titles
@@ -59,6 +61,7 @@ menuroutine:
 ;       carry flag is reset if it needs to return a pointer to the string for the element
 ;           Return carry flag as set if the element is out-of-bounds.
 ;       carry flag is set if it needs to return a pointer to the data for the element
+
   ld (menucallptr),ix
 
 ;save box dimensions
