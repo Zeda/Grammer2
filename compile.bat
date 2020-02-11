@@ -31,7 +31,7 @@ rem Install experimental package
 rem Install program launcher
     echo "Assembling Program Launcher"
     ..\spasm.exe launch.z80 ..\bin\g250.8xp
-    
+
 )
 
 cd..
