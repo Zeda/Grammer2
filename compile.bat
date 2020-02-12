@@ -3,6 +3,7 @@
 
 if exist spasm.exe (
   echo "Starting Compile..."
+  md bin
 ) else (
   echo "Opening readme..."
   start "" https://github.com/Zeda/Grammer2/blob/master/Readme.md
