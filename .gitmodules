@@ -1,6 +1,6 @@
 [submodule "z80float"]
 	path = z80float
 	url = https://github.com/Zeda/z80float.git
-[submodule "spasm.exe"]
-	path = spasm.exe
+[submodule "spasm"]
+	path = spasm
 	url = https://www.omnimaga.org/asm-language/apasm-app-name-bug-fix-windows/?action=dlattach;attach=25467
