@@ -67,7 +67,6 @@ TokenTable_0:
  .db $44,0,5,"Misc "
  .db $58,0,1,5Fh
  .db $BE,0,5,"call "
- .db $7E,0,7,"Search "
  .db 0
 
 TokenTable_1:
