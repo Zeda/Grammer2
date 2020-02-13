@@ -101,14 +101,15 @@ _:
   add hl,bc
   add hl,bc
   adc hl,bc
-  jp p,+_
-  ld a,h
-  add a,-$40
-  ld h,a
-_:
   ld a,(font_ptr_page)
+  jp p,+_
+  or a
+  jr z,+_
+  set 6,h
+  res 7,h
+  inc a
+_:
   ld bc,3
-  adc a,b
   ld de,$8005
   call readarc
   pop bc
@@ -194,29 +195,27 @@ OmniCalcFont:
   add hl,bc
   ld bc,(FontPointer)
   adc hl,bc
-  jp p,+_
-  ld a,h
-  add a,-$40
-  ld h,a
-_:
   ld a,(font_ptr_page)
+  jp p,+_
+  or a
+  jr z,+_
+  set 6,h
+  res 7,h
+  inc a
+_:
   ld bc,7
-  adc a,b
   ld de,$8005
   call readarc
-  ld de,$8005
-  ld b,7
+  ld hl,0706h
+  ld b,h
 _:
-  ld a,(hl)
+  dec e
+  ld a,(de)
   rlca
   rlca
   rlca
   ld (de),a
-  inc e
-  inc hl
   djnz -_
-  ld de,$8005
-  ld hl,0706h
   jr VputSCStepIn
 VPutSC:
 ;Inputs:
@@ -227,14 +226,15 @@ VPutSC:
   add hl,bc
   add hl,bc
   adc hl,bc ;*3
-  jp p,+_
-  ld a,h
-  add a,-$40
-  ld h,a
-_:
   ld a,(font_ptr_page)
+  jp p,+_
+  or a
+  jr z,+_
+  set 6,h
+  res 7,h
+  inc a
+_:
   ld bc,3
-  adc a,b
   ld de,$8005+6
   call readarc
   ld hl,$8005+6

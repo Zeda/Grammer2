@@ -2783,12 +2783,23 @@ GetToken:
   bcall(_ChkFindSym)
 VarTokenStepIn:
   jp c,return_BC_0
-  inc de
-  inc de
-  ld c,a
-  ld (ThetaPrimeVar),bc
-  ld b,d
-  ld c,e
+  ex de,hl
+  ld a,b
+  or a
+  jr z,+_
+  ld b,0
+  add hl,bc
+  ld c,10
+  adc hl,bc
+  jp p,+_
+  ld h,$40
+  inc a
+_:
+  ld (ThetaPrimeVar),a
+  inc hl
+  inc hl
+  ld b,h
+  ld c,l
   ret
 RepeatToken:
   push hl
