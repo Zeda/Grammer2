@@ -60,7 +60,6 @@ TokenTable_0:
  .db $04,0,6,$05,"Float"
  .db $06,0,8,5,"lFactor"
  .db $28,0,4,"ins "
- .db $
  .db $36,0,7,"ClrPart"
  .db $38,0,7,"RunPart"
  .db $3A,0,8,"AddPart "
