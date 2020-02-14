@@ -73,7 +73,7 @@ TokenTable_0:
  .db $58,0,1,5Fh           ;i (turns into "_")
  .db $BE,0,5,"call "       ;prgm
  .db $E6,0,5,"Mode "       ;Fix
- .db $EC,0,5,"setI"      ;Func
+ .db $EC,0,4,"setI"      ;Func
  .db $EE,0,0,"StackOp "    ;Param
  .db 0                     ;End of Table 0
 
