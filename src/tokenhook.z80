@@ -29,7 +29,7 @@ TokenSearchLoop:
   and $FE
 ;  ld a,e
 ;  cp (hl)
-  cp e
+  cp e 
   inc hl
   jr z,ChkByte2
 NotTokenMatch:
@@ -94,9 +94,9 @@ TokenTable_1:
  .db $AA,1,6,"retPnt"      ;Return
  .db $B4,1,7,"GetInc "     ;IS>(
  .db $B6,1,7,"GetDec "     ;DS<(
- .db $BC,1,7,"SetBuf "     ;Disp
+ .db $BC,1,7,"setBuf "     ;Disp
  .db $BE,1,7,"DispBuf"     ;DispGraph
- .db $C0,1,8,"SetFont "    ;Output(
+ .db $C0,1,8,"setFont "    ;Output(
  .db $CE,1,8,"MakeVar "    ;Send(
  .db $D0,1,8,"FindVar "    ;Get(
  .db $B4,3,6,"Local "      ;►Nom(
