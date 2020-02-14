@@ -29,7 +29,7 @@ TokenSearchLoop:
   and $FE
 ;  ld a,e
 ;  cp (hl)
-  cp e 
+  cp e
   inc hl
   jr z,ChkByte2
 NotTokenMatch:
