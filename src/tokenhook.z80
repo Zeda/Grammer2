@@ -105,7 +105,7 @@ TokenTable_1:
  .db $C8,3,6,"inStr "      ;inString(
  .db $F4,3,5,"Play "       ;conj(
  .db $FE,3,5,"parse "      ;expr(
- .db $01,4,7,"Search "     ;length(   ;use 01 instead of 00 (00 indicates the end of the table)
+; .db $01,4,7,"Search "     ;length(   ;use 01 instead of 00 (00 indicates the end of the table)
  .db $40,4,7,"StackE "     ;Pmt_End
  .db $42,4,7,"StackS "     :Pmt_Bgn
  .db $72,4,4,"gbuf"        ;G-T
