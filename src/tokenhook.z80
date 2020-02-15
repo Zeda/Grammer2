@@ -73,8 +73,8 @@ TokenTable_0:
  .db $58,0,1,5Fh           ;i (turns into "_")
  .db $BE,0,5,"call "       ;prgm
  .db $E6,0,5,"Mode "       ;Fix
- .db $EC,0,4,"setI"      ;Func
- .db $EE,0,0,"StackOp "    ;Param
+ .db $EC,0,9,"setUpInt "   ;Func
+ .db $EE,0,8,"StackOp "    ;Param
  .db 0                     ;End of Table 0
 
 TokenTable_1:
@@ -89,9 +89,9 @@ TokenTable_1:
  .db $70,1,4,"Inv "        ;not(
  .db $72,1,7,"WriteW "     ;iPart(
  .db $7C,1,4,"jmp "        ;ln(
-; .db $7E,1,2,"2^"         ;²
+; .db $7E,1,2,"2^"         ;e^(
  .db $A6,1,4,"For "        ;For(
- .db $AA,1,6,"retPnt"      ;Return
+; .db $AA,1,6,"retPnt"      ;Return
  .db $B4,1,7,"GetInc "     ;IS>(
  .db $B6,1,7,"GetDec "     ;DS<(
  .db $BC,1,7,"setBuf "     ;Disp
@@ -104,10 +104,10 @@ TokenTable_1:
  .db $C2,3,4,"del "        ;sub(
  .db $C8,3,6,"inStr "      ;inString(
  .db $F4,3,5,"Play "       ;conj(
- .db $FE,3,4,"eval "       ;expr(
+ .db $FE,3,5,"eval "       ;expr(
  .db $01,4,7,"Search "     ;length(   ;use 01 instead of 00 (00 indicates the end of the table)
  .db $40,4,7,"StackE "     ;Pmt_End
- .db $42,4,7,"StackS "     :Pmt_Bgn
+ .db $42,4,7,"StackS "     ;Pmt_Bgn
  .db $72,4,4,"gbuf"        ;G-T
  .db $7A,4,5,"Arch "       ;Archive
  .db $7C,4,7,"UnArch "     ;UnArchive
