@@ -4089,9 +4089,18 @@ FindGVarData:
   ld hl,GVarData
   rst rMov9ToOP1
   bcall(_ChkFindSym)
-  ret nc
+  ld a,b
+  jr nc,GetVarInfoVarFound
   ld hl,3
   bcall(_CreateAppVar)
+  ld hl,4
+  add hl,de
+  xor a
+  ld (hl),a
+  dec hl
+  ld (hl),a
+  dec hl
+  ld (hl),a
   ret
 GetVarName:
   call ParseFullArg
@@ -4494,6 +4503,7 @@ BufferToLCD:
 #include "subroutines/chardim.z80"
 #include "subroutines/ConvOP1.z80"
 #include "parserinterrupt.z80"
+#include "startmenu.z80"
 #include "err.z80"
 #include "commandtable.z80"
 

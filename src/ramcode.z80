@@ -1,4 +1,14 @@
 RAMCodeStart:
+_:
+readbyte = -_-RAMCodeStart+ramCode
+  ld c,6
+  in b,(c)
+  out (6),a
+  ld d,(hl)
+  inc l
+  call z,IncHLMem1
+  out (c),b
+  ret
 
 _:
 IncHLMem1 = -_-RAMCodeStart+ramCode

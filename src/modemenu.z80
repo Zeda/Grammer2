@@ -119,9 +119,21 @@ tokenhook_on:
   ld hl,TokenHook
   ld (tokenHookPtr),hl
   set tokenHookActive,(iy+hookflags3)
+
+;now reset the tokenhook opt-out
+  call p1_FindGVarData
+  or a
+  ret nz
+  res tokenhook_optout,(hl)
   ret
+
 resetTokenHook:
   res tokenHookActive,(iy+hookflags3)
+;now set the tokenhook opt-out
+  call p1_FindGVarData
+  or a
+  ret nz
+  set tokenhook_optout,(hl)
   ret
 
 

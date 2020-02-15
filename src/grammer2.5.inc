@@ -121,6 +121,8 @@ parserHookActive  = 1		;1 = parser hook active
 appLwrCaseFlag    = 24h
 lwrCaseActive     = 3
 
+;This is used in gvardata
+tokenhook_optout  = 0
 ;===============================================================================
 
 

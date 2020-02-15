@@ -1,3 +1,26 @@
+setup_parserhook:
+  call SetUpData
+  call FindGVarData
+  call readbyte
+  ;D is the flags
+  bit tokenhook_optout,d
+  call z,p0_tokenhook_on
+  in a,(6)
+  ld hl,GrammerHook
+  bcall(_SetParserHook)
+  ret
+p0_tokenhook_on:
+  ld hl,tokenhook_on
+  ld (next_page_call_address),hl
+  ld hl,tokenHookPtr+2
+  dec b
+  ld a,b
+  jp next_page_call
+
+
+
+StartMenu:
+  call setup_parserhook
 startmenu__:
 ;need to add in the options at the bottom
 ;add title at the top

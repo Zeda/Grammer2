@@ -95,6 +95,11 @@ menu_code_start:
 #include "subroutines/heapsort.z80"
 #include "subroutines/zcomp.z80"
 
+p1_FindGVarData:
+  ld hl,FindGVarData
+  ld (prev_page_call_address),hl
+  jp prev_page_call
+
 p1_PutTokenText:
   ld bc,PutTokenText
   ld (prev_page_call_address),bc
