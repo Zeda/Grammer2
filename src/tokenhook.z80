@@ -18,12 +18,15 @@ TokenHook:
   ld a,3Eh
   cp (hl)
   jr nz,tokenhook_pop1exit
-  ld b,0
-  dec d
-  inc d
+  xor a
+  ld b,a
+  or d
   ld hl,TokenTable_0
   jr z,TokenSearchLoop
   ld hl,TokenTable_1
+  dec a
+  jr z,TokenSearchLoop
+  ld hl,TokenTable_2
 TokenSearchLoop:
   ld a,(hl)
   and $FE
@@ -99,6 +102,9 @@ TokenTable_1:
  .db $C0,1,8,"setFont "    ;Output(
  .db $CE,1,8,"MakeVar "    ;Send(
  .db $D0,1,8,"FindVar "    ;Get(
+ .db 0
+
+TokenTable_2:
  .db $B4,3,6,"Local "      ;►Nom(
  .db $BE,3,8,"randInt "    ;randInt(
  .db $C2,3,4,"del "        ;sub(
