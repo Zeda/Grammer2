@@ -1,21 +1,19 @@
-<style>
-a{
-  text-decoration: none;
-  font-weight: bold;
-  border-bottom: 1px dotted gray;
-  color: black;
-}
-</style>
+<!--
+If you see this, you are probably viewing it as plaintext, and that should be
+fine, but it looks prettier when it is rendered as Markdown.
+You can see this document here:
 
-An HTML version of this file is in the `readme` folder :)
+    https://github.com/Zeda/Grammer2/blob/master/docs/readme.md
+
+-->
 
 # Commands and Tutorial
 ```
 Author........Zeda Thomas
 e-mail........xedaelnara@gmail.com
 Project.......Grammer
-Version.......2.50.7.1    (I will probably forget to change this :( )
-Last Update...7 November 2019
+Version.......2.51.0.0    (I will probably forget to change this :( )
+Last Update...15 February 2020
 Language......English
 Programming...Assembly
 Size..........2-Page app
@@ -602,17 +600,17 @@ Here is an error handler example
 
 | Name         | Description |
 |:------------ |:------- |
-| R▶Pr(        | This will clear the particle buffer.
-| R▶Pθ(        | This will recalculate the particle positions and draw them. If you want to change the particle buffer, just add a pointer argument. `Get("EBUF→A:R▶Pθ(A-2`
-| P▶Rx(        | This will add a particle to the buffer. Just use the pixel coordinate position. For example: `P▶Rx(2,2`
-| P▶Ry(        | This will change the particle effect. `0` is normal sand, `1` is boiling, `2` lets you put in a basic custom rule set. If you want it to check Down, then Left/Right, then Up, use the following pattern: `0000 1000 0110 0001`<sub>2</sub>. That makes it first check down, and if it cannot go down, it then checks left or right, and if it cannot go left or right, it tests up. In decimal, that is 2145, so you would do: `P▶Ry(2,2145`. To make things easier, though, you can just use a string. This will achieve the same effect: `P▶Ry(2,"D,LR,U`. **Note** that you do need the actual string, not a pointer.
-|  P▶Rx('      | This will convert a rectangular region of the screen to particles. The inputs are `P▶Rx('Y,X,Height,Width`. This scans the area for pixels that are turned on and adds them to the current particle buffer.
+| clrPart <sub>R►Pr(</sub>        | This will clear the particle buffer.
+| runPart <sub>R►PΘ(</sub>        | This will recalculate the particle positions and draw them. If you want to change the particle buffer, just add a pointer argument. `Get("EBUF→A:R▶Pθ(A-2`
+| addPart <sub>P►Rx(</sub>        | This will add a particle to the buffer. Just use the pixel coordinate position. For example: `P▶Rx(2,2`
+| partType <sub>P▶Ry(</sub>       | This will change the particle effect. `0` is normal sand, `1` is boiling, `2` lets you put in a basic custom rule set. If you want it to check Down, then Left/Right, then Up, use the following pattern: `0000 1000 0110 0001`<sub>2</sub>. That makes it first check down, and if it cannot go down, it then checks left or right, and if it cannot go left or right, it tests up. In decimal, that is 2145, so you would do: `P▶Ry(2,2145`. To make things easier, though, you can just use a string. This will achieve the same effect: `P▶Ry(2,"D,LR,U`. **Note** that you do need the actual string, not a pointer.
+| addPart(' <sub>P►Rx('</sub>     | This will convert a rectangular region of the screen to particles. The inputs are `P▶Rx('Y,X,Height,Width`. This scans the area for pixels that are turned on and adds them to the current particle buffer.
 
 ## Miscellaneous
 
 | Name         | Description |
 |:------------ |:------- |
-| ▶DMS         | Found in the angle menu, this is the "module" token. Modules allow you to extend Grammer's functionality. Grammer comes with a default module which must be included to use some functions (like the `Menu` command). Currently, you can have up to five other modules. For example, if you have a module packaged as an appvar called `MyModule`: `"5MyModule→▶DMS`. In order to execute a function `MyFunc(` from one of the modules, use : `▶DMSMyFunc`. If you have the token hook enabled (from Grammer's main menu), it looks a little cleaner: `"5MyModule→$` and `$MyFunc`, respectively.
+| $ <sub>▶DMS</sub> | Found in the angle menu, this is the "module" token. Modules allow you to extend Grammer's functionality. Grammer comes with a default module which must be included to use some functions (like the `Menu` command). Currently, you can have up to five other modules. For example, if you have a module packaged as an appvar called `MyModule`: `"5MyModule→▶DMS`. In order to execute a function `MyFunc(` from one of the modules, use : `▶DMSMyFunc`. If you have the token hook enabled (from Grammer's main menu), it looks a little cleaner: `"5MyModule→$` and `$MyFunc`, respectively.
 | conj(        | **Warning:** I have no knowledge of musical jargon, so excuse my mistakes. This is a sound command with three inputs. The syntax is `conj(Note,Octave,Duration`. Notes are: 0=C, 1=C#, 2=D, 3=D#, 4=E, 5=F, 6=F#, 7=G, 8=G#, 9=A, 10=A#, 11=B. Octave is 0 to 6. Duration is in 64th notes. So for example, a 32nd dot note uses 3/64th time. Duration is thus 3.
 | conj('       | This sound routine has two different functions `conj('Duration,'Period` or `conj('Duration,DataLoc,Size`. This reads data for the period directly to save time (intead of converting numbers on the fly). Size is the size of the data in words, not bytes.
 
@@ -644,7 +642,7 @@ arrays and matrices. First, here are the commands you have to work with:
 | Unarchive    | Use this like `Archive`, except this unarchives the var
 | Delvar       | Use this like `Archive`, except this will delete a var
 | sub(         | Use this to remove data from a variable. the syntax is: `sub(#ofBytes,Offset,"Varname`. For example, to delete the first 4 bytes of program Alpha: `sub(4,0,"EAlpha`.
-| augment(     | This is used to insert data into a var. The syntax is: `augment(#ofbytes,Offset,"VarName`. For example, to insert 4 bytes at the beginning of appvar `Hello`: `augment(4,0,"UHello`.
+| ins <sub>augment</sub>     | This is used to insert data into a var. The syntax is: `augment(#ofbytes,Offset,"VarName`. For example, to insert 4 bytes at the beginning of appvar `Hello`: `augment(4,0,"UHello`.
 
 Display the first 4 bytes of prgmPROG  using `IS>(`
 ```
