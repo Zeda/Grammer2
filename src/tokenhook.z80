@@ -25,8 +25,11 @@ TokenHook:
   jr z,TokenSearchLoop
   ld hl,TokenTable_1
 TokenSearchLoop:
-  ld a,e
-  cp (hl)
+  ld a,(hl)
+  and $FE
+;  ld a,e
+;  cp (hl)
+  cp e
   inc hl
   jr z,ChkByte2
 NotTokenMatch:
@@ -56,36 +59,58 @@ NoChange:
 TokenTable:
 TokenTable_0:
 ; .db $02,0,7,"module."
- .db $02,0,1,$F2    ;$
- .db $04,0,6,$05,"Float"
- .db $06,0,8,5,"lFactor"
- .db $28,0,7,"Insert("
- .db $36,0,7,"ClrPart"
- .db $38,0,7,"RunPart"
- .db $3A,0,8,"AddPart("
- .db $3C,0,9,"PartType("
- .db $44,0,5,"Misc("
- .db $58,0,1,5Fh
- .db $BE,0,5,"call "
- .db 0
+ .db $02,0,1,$F2           ;►DMS (turns into "$")
+ .db $04,0,6,$05,"Float"   ;►Dec
+ .db $06,0,8,5,"lFactor"   ;►Frac
+ .db $28,0,4,"ins "        ;augment(
+ .db $32,0,4,"max "        ;max(
+ .db $34,0,4,"min "        ;min(
+ .db $36,0,7,"clrPart"     ;R►Pr
+ .db $38,0,7,"runPart"     ;R►PΘ
+ .db $3A,0,8,"addPart "    ;P►Rx
+ .db $3C,0,9,"partType "   ;P►Ry
+ .db $44,0,5,"misc "       ;solve(
+ .db $58,0,1,5Fh           ;i (turns into "_")
+ .db $BE,0,5,"call "       ;prgm
+ .db $E6,0,5,"Mode "       ;Fix
+ .db $EC,0,9,"setUpInt "   ;Func
+ .db $EE,0,8,"StackOp "    ;Param
+ .db 0                     ;End of Table 0
 
 TokenTable_1:
- .db $38,1,5,"Rect("
- .db $3C,1,5,"Tile("
- .db $3E,1,7,"Sprite("
- .db $40,1,8,"TileMap("
- .db $48,1,9,"Contrast("
- .db $4E,1,9,"ShiftBuf("
- .db $62,1,7,"WriteB("
- .db $70,1,4,"Inv("
- .db $72,1,7,"WriteW("
-; .db $7E,1,2,"2^"
- .db $A6,1,4,"For "
- .db $B4,1,7,"GetInc("
- .db $B6,1,7,"GetDec("
- .db $BC,1,7,"SetBuf("
- .db $C0,1,8,"SetFont("
- .db $CE,1,8,"MakeVar("
- .db $D0,1,8,"FindVar("
- .db $72,4,4,"gbuf"
- .db 0
+ .db $26,1,5,"Text "       ;Text(
+ .db $38,1,5,"Rect "       ;Line(
+ .db $3C,1,5,"Tile "       ;Pt-On(
+ .db $3E,1,7,"Sprite "     ;Pt-Off(
+ .db $40,1,8,"TileMap "    ;Pt-Change(
+ .db $48,1,9,"Contrast "   ;Shade(
+ .db $4E,1,9,"shiftBuf "   ;Tangent(
+ .db $62,1,7,"WriteB "     ;int(
+ .db $70,1,4,"Inv "        ;not(
+ .db $72,1,7,"WriteW "     ;iPart(
+ .db $7C,1,4,"jmp "        ;ln(
+; .db $7E,1,2,"2^"         ;e^(
+ .db $A6,1,4,"For "        ;For(
+; .db $AA,1,6,"retPnt"      ;Return
+ .db $B4,1,7,"GetInc "     ;IS>(
+ .db $B6,1,7,"GetDec "     ;DS<(
+ .db $BC,1,7,"setBuf "     ;Disp
+ .db $BE,1,7,"DispBuf"     ;DispGraph
+ .db $C0,1,8,"setFont "    ;Output(
+ .db $CE,1,8,"MakeVar "    ;Send(
+ .db $D0,1,8,"FindVar "    ;Get(
+ .db $B4,3,6,"Local "      ;►Nom(
+ .db $BE,3,8,"randInt "    ;randInt(
+ .db $C2,3,4,"del "        ;sub(
+ .db $C8,3,6,"inStr "      ;inString(
+ .db $F4,3,5,"Play "       ;conj(
+ .db $FE,3,5,"eval "       ;expr(
+ .db $01,4,7,"Search "     ;length(   ;use 01 instead of 00 (00 indicates the end of the table)
+ .db $40,4,7,"StackE "     ;Pmt_End
+ .db $42,4,7,"StackS "     ;Pmt_Bgn
+ .db $72,4,4,"gbuf"        ;G-T
+ .db $7A,4,5,"Arch "       ;Archive
+ .db $7C,4,7,"UnArch "     ;UnArchive
+ .db $7E,4,4,"Asm "        ;Asm(
+ .db $82,4,7,"AsmHex "     ;AsmPrgm
+ .db 0                     ;End of Table 1
