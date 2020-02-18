@@ -3,7 +3,9 @@
 ;Arc, on two pages: 21n+269
 ;Arc, on three pages: 21n+355
   or a
-  jp z,ReadRAM    ;different routine in the App,
+  jp z,ReadRAM    ;different routine in the App
+  bit 7,h
+  jp nz,ReadRAM    ;different routine in the App
   out (6),a
   adc hl,bc
 ;  jr c,read_from_Arc_blocks   ;if you need this, you probably need a different routine. this will write on page 0.
