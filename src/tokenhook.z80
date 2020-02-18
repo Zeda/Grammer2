@@ -94,7 +94,7 @@ TokenTable_1:
  .db $7C,1,4,"jmp "        ;ln(
 ; .db $7E,1,2,"2^"         ;e^(
  .db $A6,1,4,"For "        ;For(
-; .db $AA,1,6,"retPnt"      ;Return
+ .db $AA,1,8,"nextPntr"    ;Return
  .db $B4,1,7,"GetInc "     ;IS>(
  .db $B6,1,7,"GetDec "     ;DS<(
  .db $BC,1,7,"setBuf "     ;Disp
