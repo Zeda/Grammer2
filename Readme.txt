@@ -1,4 +1,4 @@
-Hey! Look in the "readme" folder, and open "readme.html" in your browser :)
+Hey! Look in the "docs" folder, and open "readme.md" in :)
 The easiest way to submit bug reports is through GitHub:
     https://github.com/Zeda/Grammer2/issues
 
