@@ -381,7 +381,6 @@ VPutC_OS_large:
   sub 1
   jr c,+_
   ld b,a
-  ld a,$7F
   call OS_font_sub
   inc l
   inc h
@@ -394,7 +393,6 @@ VPutC_OS_small:
   or a
   jr z,+_
   ld b,a
-  ld a,3
   call OS_font_sub
   inc de
   jp VputSCStepIn
@@ -431,6 +429,7 @@ OS_font_sub:
   call os_char_ptr
   ld de,lfont_record
   ld bc,8
+  ld a,(font_ptr_page)
   call readarc
   ld hl,lFont_record
   ld a,8

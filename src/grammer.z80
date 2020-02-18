@@ -211,7 +211,16 @@ _:
   cp 2Bh
   call z,ParseNextFullArg
   ld (FontPointer),bc
+  ld b,a
   ld c,0
+  ld a,(textmode)
+  cp 4
+  jr c,+_
+  ld c,3      ;OS small font
+  jr z,+_
+  ld c,$7F    ;OS large font
+_:
+  ld a,b
   cp $2B
   call z,ParseNextFullArg
   ld a,c
@@ -1882,12 +1891,13 @@ setup_readarc:
 #ifndef include_TSA
   ld hl,ReadArcData
   ld de,TSA
-;mov 71 bytes
-  call mov14
-  call mov14
-  call mov14
-  call mov14
+;mov 76 bytes
   call mov15
+  call mov15
+  call mov15
+  call mov15
+  call mov15
+  ldi
   in a,(6)
   ld (page_restore),a
   ld (bincomparepagerestore),a
