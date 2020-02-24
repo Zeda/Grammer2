@@ -46,17 +46,20 @@ If you have questions or suggestions, feel free to email me or post in the forum
       - [Control Examples](#control-examples)   
    - [Input/Computing](#inputcomputing)   
       - [Input Vars!](#input-vars)   
+      - [expr( Examples](#expr-examples)   
+      - [Useful eval  trick](#useful-eval-trick)   
       - [Input Examples](#input-examples)   
-   - [solve(](#solve)   
+   - [misc](#misc)   
    - [Physics](#physics)   
    - [Miscellaneous](#miscellaneous)   
+      - [Play notes](#play-notes)   
    - [Data Structures](#data-structures)   
    - [Memory Access](#memory-access)   
    - [Data Structures, continued](#data-structures-continued)   
    - [Modes](#modes)   
-      - [Fix](#fix)   
-      - [Output(](#output)   
-      - [Mode Examples](#mode-examples)   
+      - [Mode](#mode)   
+      - [setFont](#setfont)   
+      - [Full Examples](#full-examples)   
 - [Charts](#charts)   
    - [Key Codes](#key-codes)   
 - [Examples](#examples)   
@@ -519,7 +522,7 @@ piece of memory as Grammer code. Ouch!
 So the simple fix is to put the `→Z` on the next line:
 ```
 "Rect X,Y,15,15,2
-→Z 
+→Z
 eval Z
 DispBuf
 eval Z
@@ -571,7 +574,7 @@ Stop
 ```
 
 
-## misc 
+## misc
 This is a command subset. Commands start as `misc #,`. The TI-OS Token equivalent is `solve(`.
 
 | `#` | Name         | Description |
@@ -737,7 +740,7 @@ Toggles mode 4 (enable/disable [ON] key)
 :Mode xor 4
 ```
 
-### setFont 
+### setFont
   This is used to change the font. The syntax is:
 * `setFont 0` will change to the default 4x6 font.
 * `setFont 1` will change to the variable width font.
