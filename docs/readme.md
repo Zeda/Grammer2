@@ -204,7 +204,7 @@ lot of info (about 9 pages), but I made some examples later on so that you can f
 | `!If <expr>`                   | Like `If`, but executes if the condition is false.
 | `!If-Then`                     | Like `If-Then`, but inverts the condition.
 | `!If-Then-Else`                | Like `If-Then-Else`, but inverts the condition.
-| `For ` *<small>For(</small>*         | The arguments for this are `For(Var,Start,End`. `Var` is the name of a var, `Start` is the starting value to load to the var. `End` is the max value to load to the var. Executes the loop, incrementing the variable each time until Var=End
+| `For ` *<sub>For(</sub>*         | The arguments for this are `For(Var,Start,End`. `Var` is the name of a var, `Start` is the starting value to load to the var. `End` is the max value to load to the var. Executes the loop, incrementing the variable each time until Var=End
 | `For <<expr>>`                 | The arguments for this are `For(#loops`. `#loops` is how many times the `For` loop will... loop. This is useful if you need it to loop without actually affecting a variable.
 | `Pause If`                     | This will pause so long as the condition is true for example, to pause until a key is pressed, `Pause If !getKey`.
 | `!Pause If`                    | This will pause while the condition is false. So to pause until enter is pressed, do `!Pause If 9=getKey`.
@@ -212,7 +212,7 @@ lot of info (about 9 pages), but I made some examples later on so that you can f
 | `!While <condition>`           | Executes what is between `!While...End` so long as the condition is zero.
 | `Repeat <condition>`           | Executes what is between `Repeat...End` and continues to do so as long as the condition is zero.
 | `!Repeat <condition>`          | Executes what is between `Repeat...End` and continues to do so as long as the condition is non-zero.
-| `Local x,y,z` *<small>▶Nom(</small>* | This starts a block in which a defined list of variables is preserved. For example, in `Local A,B,C: <<code>> :End`, no matter what `<<code>>` does to A,B, and C, they will be restored when the `End` is parsed.
+| `Local x,y,z` *<sub>▶Nom(</sub>* | This starts a block in which a defined list of variables is preserved. For example, in `Local A,B,C: <<code>> :End`, no matter what `<<code>>` does to A,B, and C, they will be restored when the `End` is parsed.
 
 ### Examples With Blocks
 
@@ -290,25 +290,25 @@ An example with `Local `
 
 | Name         | Description |
 |:------------ |:------- |
-| `nextPntr` *<small>Return</small>* | This returns a pointer to the next line of code.
+| `nextPntr` *<sub>Return</sub>* | This returns a pointer to the next line of code.
 | `Goto `                     | This is unlike the BASIC `Goto` command. This jumps to a pointer as opposed to a label.
 | `Lbl `                      | This returns the pointer of a label. The argument is a pointer to the label name. For example, `Lbl "HI` will search for `.HI` in the program code. Also, you can specify which variable the label is in. For example, if you wanted to jump to a label in another program, you can add a second argument as the name of the var. For example, to find the label `HI` in prgmBYE: `Lbl "HI","BYE` ***Note:*** *If your label moves, you'll need to manually update the pointer! For example, when creating a variable, or resizing one, or archiving/unarchiving. I recommend doing all of that first, then finding labels. If your label moves, then you might accidentally execute garbage data.*
 | `Pause xx`                  | This will pause for approximately xx/100 seconds. So `Pause 66` will pause for about .66 seconds.
 | `Pause `                    | This will wait for [Enter] to be pressed and released.
-| `call ` *<small>prgm</small>*     | This is used to execute a sub routine.
-| `call (` *<small>prgm</small>*    | This executes a subroutine, and sets `?` var to to point to the arguments. For example, `prgm(Z,1,2,3` will call the routine that `Z` points to, and sets `?` to point to the `1`.
+| `call ` *<sub>prgm</sub>*     | This is used to execute a sub routine.
+| `call (` *<sub>prgm</sub>*    | This executes a subroutine, and sets `?` var to to point to the arguments. For example, `prgm(Z,1,2,3` will call the routine that `Z` points to, and sets `?` to point to the `1`.
 | `]`          | This takes a pvar as an argument. It parses the code at the pointer as an argument, then updates the pointer to point to the next argument. This is useful for parsing arguments passed to a subroutine. Take the example above, if the subroutine that `Z` points to has the code `]?`, then the `1` will be parsed. The next `]?` will parse the `2`, and so on.
-| `setUpInt ` *<small>Func</small>*        | The arguments are `setUpInt Pointer[,Counter`. This will automatically execute the subroutine pointed to by <<pointer>> based on Counter. Counter is based on an internal counter, not based on actual timings like seconds or milliseconds. The default is 128. See the [examples](#control-examples) below.
-| `Asm ` *<small>Asm(</small>*      | This can be used to run an assembly program.
-| `AsmHex` *<small>AsmPrgm</small>* | This allows you to input an asm code in hex. (C9 is needed)
-| `jmp ` *<small>ln(</small>*       | This will let you jump forward or backward a given number of lines.
+| `setUpInt ` *<sub>Func</sub>*        | The arguments are `setUpInt Pointer[,Counter`. This will automatically execute the subroutine pointed to by <<pointer>> based on Counter. Counter is based on an internal counter, not based on actual timings like seconds or milliseconds. The default is 128. See the [examples](#control-examples) below.
+| `Asm ` *<sub>Asm(</sub>*      | This can be used to run an assembly program.
+| `AsmHex` *<sub>AsmPrgm</sub>* | This allows you to input an asm code in hex. (C9 is needed)
+| `jmp ` *<sub>ln(</sub>*       | This will let you jump forward or backward a given number of lines.
 | <sub>L</sub>                | The list <sub>L</sub>. Arguments are <sub>`L`</sub>`line#,[start,[size,[EOL` This let's you execute a specific line number. By default, it starts the line count within the main program, but you can pass an optional start value, an optional size value (default is 32768 bytes long), and an optional End-Of-Line argument (default is 63, the newline token).
-| `StackOp ` *<small>Param</small>* | `?` points to parameters, this stores those parameter values to variables. For example, if `?` points to `1,2,3,4`, then `StackOP A,B,C,D` will store `1` to `A`, `2` to `B`, `3` to `C`, and `4` to `D`. This updates `?`. This is useful for subroutines that take parameters! See the example below.
-| `StackOp '` *<small>Param</small>* | This pushes values to the parameter stack. For example, `Param'A,0,1,B+2` pushes the value of A, 0, 1, and B+2 to the stack.
-| `StackOp °` *<small>Param</small>* | This pops values off the parameter stack into a var. For example, using the previous `push` sequence, `Param°A,B,C,D` would store the original `B`+2 to `A`, `1` to `B`, `0` to `C`, and the original `A` to `D`.
-| `StackS ` *<small>Pmt_Bgn</small>* | This token is located at [Apps][Finance][Up]. This is a var that holds the base location for the parameter stack. Changing this value automatically resets the parameter stack pointer.
-| `StackE ` *<small>Pmt_End</small>* | This token is located at [Apps][Finance][Up][Up]. This is a var that holds the end location for the parameter stack.
-| `Local x,y,z` *<small>▶Nom(</small>* | This starts a block in which a defined list of variables is preserved. For example, in `Local A,B,C: <<code>> :End`, no matter what `<<code>>` does to A,B, and C, they will be restored when the `End` is parsed.
+| `StackOp ` *<sub>Param</sub>* | `?` points to parameters, this stores those parameter values to variables. For example, if `?` points to `1,2,3,4`, then `StackOP A,B,C,D` will store `1` to `A`, `2` to `B`, `3` to `C`, and `4` to `D`. This updates `?`. This is useful for subroutines that take parameters! See the example below.
+| `StackOp '` *<sub>Param</sub>* | This pushes values to the parameter stack. For example, `Param'A,0,1,B+2` pushes the value of A, 0, 1, and B+2 to the stack.
+| `StackOp °` *<sub>Param</sub>* | This pops values off the parameter stack into a var. For example, using the previous `push` sequence, `Param°A,B,C,D` would store the original `B`+2 to `A`, `1` to `B`, `0` to `C`, and the original `A` to `D`.
+| `StackS ` *<sub>Pmt_Bgn</sub>* | This token is located at [Apps][Finance][Up]. This is a var that holds the base location for the parameter stack. Changing this value automatically resets the parameter stack pointer.
+| `StackE ` *<sub>Pmt_End</sub>* | This token is located at [Apps][Finance][Up][Up]. This is a var that holds the end location for the parameter stack.
+| `Local x,y,z` *<sub>▶Nom(</sub>* | This starts a block in which a defined list of variables is preserved. For example, in `Local A,B,C: <<code>> :End`, no matter what `<<code>>` does to A,B, and C, they will be restored when the `End` is parsed.
 
 ### Control Examples
 ```
@@ -384,10 +384,10 @@ Or to jump backwards:
 | `Menu('`       | Draws a menu that queries Grammer subroutines for the content to render. Syntax is `Menu('"Title",y,x,height,width,GET_ELEMENT_ptr,SELECT_ELEMENT_ptr`. The subroutine for GET_ELEMENT will receive the index in Ans. Return 0 if out-of-bounds, else return a pointer to the string to draw. The subroutine for SELECT_ELEMENT will receive the index in Ans, and the header number in `Ɵ'`. Modify this as you want, the result will be returned as the result of the menu. Returns 0 if exited due to `[CLEAR]` or `[ON]`. ***NOTE:** You can't use font mode 0 for this; instead the menu routine will convert to font mode 2.*|
 | `Menu(''`      | This works like `Menu('`, but when you put `'` in front of the header argument, `Menu('` will instead interpret it as a pointer to a routine. The routine will take a value in Ans, the current header, and that routine should return the appropriate string. Return 0 if out-of-bounds. |
 | `Ans`          | This will return the value of the previous line.
-| `eval ` *<small>expr(</small>*        | This will compute a string as a line of code (useful with `Input`). **See below for more info on [`eval `](#expr-examples)!**
-| `inStr ` *<small>inString</small>*   | This is similar to the TI-BASIC command. This will return the location of a sub-string. The inputs are where to start searching and the string to search for: `inStr SearchStart,SearchString[,maxlength]`. The size of the input string is returned in `Ɵ'` and if there was no match found, 0 is returned.
-| `Search ` *<small>length(</small>*      | This will return the size of a variable (in RAM or Archive) as well as the pointer to the data in `Ɵ'`. For example, to get the size of the appvar named `Data`: `Search "UData→A`. If the var is not found, -1 is returned.
-| `Search '` *<small>length(</small>*     | This is used to search for a line. For example, if you want to find a specific line number in a program, this is what you would use. The syntax: `Search 'StartSearch,Size,LineNumber,[LineByte`, `StartSearch` is where to begin the search `Size` is how many bytes to search in. 0 will search all RAM. `LineNumber` is the line number you are looking for. `LineByte` is an optional argument for what byte is considered a new line. The output is the location of the string and `Ɵ'` has the size of the string. If the line is not found, the last line is returned instead.
+| `eval ` *<sub>expr(</sub>*        | This will compute a string as a line of code (useful with `Input`). **See below for more info on [`eval `](#expr-examples)!**
+| `inStr ` *<sub>inString</sub>*   | This is similar to the TI-BASIC command. This will return the location of a sub-string. The inputs are where to start searching and the string to search for: `inStr SearchStart,SearchString[,maxlength]`. The size of the input string is returned in `Ɵ'` and if there was no match found, 0 is returned.
+| `Search ` *<sub>length(</sub>*      | This will return the size of a variable (in RAM or Archive) as well as the pointer to the data in `Ɵ'`. For example, to get the size of the appvar named `Data`: `Search "UData→A`. If the var is not found, -1 is returned.
+| `Search '` *<sub>length(</sub>*     | This is used to search for a line. For example, if you want to find a specific line number in a program, this is what you would use. The syntax: `Search 'StartSearch,Size,LineNumber,[LineByte`, `StartSearch` is where to begin the search `Size` is how many bytes to search in. 0 will search all RAM. `LineNumber` is the line number you are looking for. `LineByte` is an optional argument for what byte is considered a new line. The output is the location of the string and `Ɵ'` has the size of the string. If the line is not found, the last line is returned instead.
 
 Here is an example with the basic menu:
 ```
@@ -600,19 +600,19 @@ Here is an error handler example
 
 | Name         | Description |
 |:------------ |:------- |
-| `clrPart` *<small>R►Pr(</small>*        | This will clear the particle buffer.
-| `runPart` *<small>R►PΘ(</small>*        | This will recalculate the particle positions and draw them. If you want to change the particle buffer, just add a pointer argument. `FindVar "EBUF→A:runPart A-2`
-| `addPart` *<small>P►Rx(</small>*        | This will add a particle to the buffer. Just use the pixel coordinate position. For example: `addPart 2,2`
-| `partType` *<small>P▶Ry(</small>*       | This will change the particle effect. `0` is normal sand, `1` is boiling, `2` lets you put in a basic custom rule set. If you want it to check Down, then Left/Right, then Up, use the following pattern: `0000 1000 0110 0001`<sub>2</sub>. That makes it first check down, and if it cannot go down, it then checks left or right, and if it cannot go left or right, it tests up. In decimal, that is 2145, so you would do: `partType 2,2145`. To make things easier, though, you can just use a string. This will achieve the same effect: `partType 2,"D,LR,U`. **Note** that you do need the actual string, not a pointer.
-| `addPart '` *<small>P►Rx('</small>*     | This will convert a rectangular region of the screen to particles. The inputs are `addPart 'Y,X,Height,Width`. This scans the area for pixels that are turned on and adds them to the current particle buffer.
+| `clrPart` *<sub>R►Pr(</sub>*        | This will clear the particle buffer.
+| `runPart` *<sub>R►PΘ(</sub>*        | This will recalculate the particle positions and draw them. If you want to change the particle buffer, just add a pointer argument. `FindVar "EBUF→A:runPart A-2`
+| `addPart` *<sub>P►Rx(</sub>*        | This will add a particle to the buffer. Just use the pixel coordinate position. For example: `addPart 2,2`
+| `partType` *<sub>P▶Ry(</sub>*       | This will change the particle effect. `0` is normal sand, `1` is boiling, `2` lets you put in a basic custom rule set. If you want it to check Down, then Left/Right, then Up, use the following pattern: `0000 1000 0110 0001`<sub>2</sub>. That makes it first check down, and if it cannot go down, it then checks left or right, and if it cannot go left or right, it tests up. In decimal, that is 2145, so you would do: `partType 2,2145`. To make things easier, though, you can just use a string. This will achieve the same effect: `partType 2,"D,LR,U`. **Note** that you do need the actual string, not a pointer.
+| `addPart '` *<sub>P►Rx('</sub>*     | This will convert a rectangular region of the screen to particles. The inputs are `addPart 'Y,X,Height,Width`. This scans the area for pixels that are turned on and adds them to the current particle buffer.
 
 ## Miscellaneous
 
 | Name         | Description |
 |:------------ |:------- |
-| `$` *<small>▶DMS</small>* ▶DMS | Found in the angle menu, this is the "module" token. Modules allow you to extend Grammer's functionality. Grammer comes with a default module which must be included to use some functions (like the `Menu` command). Currently, you can have up to five other modules. For example, if you have a module packaged as an appvar called `MyModule`: `"5MyModule→▶DMS`. In order to execute a function `MyFunc(` from one of the modules, use : `▶DMSMyFunc`. If you have the token hook enabled (from Grammer's main menu), it looks a little cleaner: `"5MyModule→$` and `$MyFunc`, respectively.
-| `Play` *<small>conj(</small>*    | **Warning:** I have no knowledge of musical jargon, so excuse my mistakes. This is a sound command with three inputs. The syntax is `Play Note,Octave,Duration`. See below for notes. Octave is 0 to 6. Duration is in 64th notes. So for example, a 32nd dot note uses 3/64th time. Duration is thus 3.
-| `conj('` *<small>conj(</small>*   | This sound routine has two different functions `Play 'Duration,'Period` or `Play 'Duration,DataLoc,Size`. This reads data for the period directly to save time (intead of converting numbers on the fly). Size is the size of the data in words, not bytes.
+| `$` *<sub>▶DMS</sub>* ▶DMS | Found in the angle menu, this is the "module" token. Modules allow you to extend Grammer's functionality. Grammer comes with a default module which must be included to use some functions (like the `Menu` command). Currently, you can have up to five other modules. For example, if you have a module packaged as an appvar called `MyModule`: `"5MyModule→▶DMS`. In order to execute a function `MyFunc(` from one of the modules, use : `▶DMSMyFunc`. If you have the token hook enabled (from Grammer's main menu), it looks a little cleaner: `"5MyModule→$` and `$MyFunc`, respectively.
+| `Play` *<sub>conj(</sub>*    | **Warning:** I have no knowledge of musical jargon, so excuse my mistakes. This is a sound command with three inputs. The syntax is `Play Note,Octave,Duration`. See below for notes. Octave is 0 to 6. Duration is in 64th notes. So for example, a 32nd dot note uses 3/64th time. Duration is thus 3.
+| `conj('` *<sub>conj(</sub>*   | This sound routine has two different functions `Play 'Duration,'Period` or `Play 'Duration,DataLoc,Size`. This reads data for the period directly to save time (intead of converting numbers on the fly). Size is the size of the data in words, not bytes.
 
 ### Play notes
 
@@ -643,22 +643,22 @@ arrays and matrices. First, here are the commands you have to work with:
 
 | Name         | Description |
 |:------------ |:------- |
-| `FindVar ` *<small>Get(</small>* | This uses a string for the name of an OS var and returns a pointer to its data. If the variable does not exist, this returns 0. If it is archived, the value returned will be less than 32768. Ɵ' contains the flash page the variable is on, if it is archived, otherwise Ɵ' is 0. As an example, `FindVar "ESPRITES→A'` would return a pointer to the data of `prgmSPRITES` in `A'`.
+| `FindVar ` *<sub>Get(</sub>* | This uses a string for the name of an OS var and returns a pointer to its data. If the variable does not exist, this returns 0. If it is archived, the value returned will be less than 32768. Ɵ' contains the flash page the variable is on, if it is archived, otherwise Ɵ' is 0. As an example, `FindVar "ESPRITES→A'` would return a pointer to the data of `prgmSPRITES` in `A'`.
 | `(`            | Use this to read a byte of data from RAM
 | `{`            | Use this to read a two byte value from RAM (little endian)
-| `WriteB ` *<small>int(</small>*       | Use this to write a byte of data to RAM.
-| `WriteW ` *<small>iPart</small>*       | Use this to write a word of data to RAM, little-endian (a word is 2 bytes). For example, to set the first two bytes to 0 in prgmHI: `FindVar "EHI→A:WriteW A,0`
-| `MakeVar ` *<small>Send(</small>*  | Use this to create Appvars or programs of any size and filled with zeros (so long as there is enough memory). For example, to create `prgmHI` with 768 bytes: `MakeVar 768,"EHI`. Programs must be prefixed with `"E"`, protected programs `"F"` and appvars `"U"`. Lowercase letters are allowed! :)
+| `WriteB ` *<sub>int(</sub>*       | Use this to write a byte of data to RAM.
+| `WriteW ` *<sub>iPart</sub>*       | Use this to write a word of data to RAM, little-endian (a word is 2 bytes). For example, to set the first two bytes to 0 in prgmHI: `FindVar "EHI→A:WriteW A,0`
+| `MakeVar ` *<sub>Send(</sub>*  | Use this to create Appvars or programs of any size and filled with zeros (so long as there is enough memory). For example, to create `prgmHI` with 768 bytes: `MakeVar 768,"EHI`. Programs must be prefixed with `"E"`, protected programs `"F"` and appvars `"U"`. Lowercase letters are allowed! :)
 | `[`            | Store a sequence of bytes to a given location. For example, `A[1,2,3,4` will store 4 bytes at A. You can also store some elements as two-byte words by using the `°` token. `A[1,2,3°,4`
 | `[[`           | Stores a sequence of 2-byte words. `A[[1,2,3,4`
 | `[(`           | Stores hexadecimal input as raw data. `A[(3C7EFFFFFFFF7E3C`
-| `GetInc ` *<small>IS>(</small>* | This is used to read memory. The argument is one of the pointer vars. It reads the byte pointed to by the pvar and then the pvar is incremented (so consecutive uses will read consecutive bytes).
-| `GetDec ` *<small>DS<(</small>* | This is used to read memory. The argument is one of the pointer vars. It reads the byte pointed to by the pvar and then the pvar is decremented (see note on `GetInc `)
-| `Arch ` *<small>Archive</small>* | Follow this with a var name to archive the var. For example, to archive `prgmPROG`, do this: `Arch "EPROG`.
-| `UnArch ` *<small>UnArchive</small>* | Use this like `Arch `, except this unarchives the var
+| `GetInc ` *<sub>IS>(</sub>* | This is used to read memory. The argument is one of the pointer vars. It reads the byte pointed to by the pvar and then the pvar is incremented (so consecutive uses will read consecutive bytes).
+| `GetDec ` *<sub>DS<(</sub>* | This is used to read memory. The argument is one of the pointer vars. It reads the byte pointed to by the pvar and then the pvar is decremented (see note on `GetInc `)
+| `Arch ` *<sub>Archive</sub>* | Follow this with a var name to archive the var. For example, to archive `prgmPROG`, do this: `Arch "EPROG`.
+| `UnArch ` *<sub>UnArchive</sub>* | Use this like `Arch `, except this unarchives the var
 | `DelVar `      | Use this like `Arch `, except this will delete a var
-| `del `  *<small>sub(</small>*       | Use this to remove data from a variable. the syntax is: `del #ofBytes,Offset,"Varname`. For example, to delete the first 4 bytes of program Alpha: `del 4,0,"EAlpha`.
-| ins *<small>augment</small>*     | This is used to insert data into a var. The syntax is: `ins #ofbytes,Offset,"VarName`. For example, to insert 4 bytes at the beginning of appvar `Hello`: `ins 4,0,"UHello`.
+| `del `  *<sub>sub(</sub>*       | Use this to remove data from a variable. the syntax is: `del #ofBytes,Offset,"Varname`. For example, to delete the first 4 bytes of program Alpha: `del 4,0,"EAlpha`.
+| ins *<sub>augment</sub>*     | This is used to insert data into a var. The syntax is: `ins #ofbytes,Offset,"VarName`. For example, to insert 4 bytes at the beginning of appvar `Hello`: `ins 4,0,"UHello`.
 
 Display the first 4 bytes of prgmPROG  using `GetInc `
 ```
@@ -698,10 +698,10 @@ syntax that tilemaps are stored (stored in rows).
 
 | Name         | Description |
 |:------------ |:------- |
-| `Mode Text(` *<small>Fix</small>* | Use this to set the typewriter delay. The larger the number, the slower the typewriter text is displayed.
-| `Mode ` *<small>Fix</small>*  | See description below.
+| `Mode Text(` *<sub>Fix</sub>* | Use this to set the typewriter delay. The larger the number, the slower the typewriter text is displayed.
+| `Mode ` *<sub>Fix</sub>*  | See description below.
 | `Full`         | This is used to set 15MHz mode. Alternatively, if you add a number to the end `Full0` sets 6MHz, `Full1` sets 15MHz, `Full2` toggles the speed. 15MHz is only set if it is possible for the calc. This returns `0` if the previous speed setting was 6MHz, `1` if it was 15MHz.
-| `setFont` *<small>Output(</small>*      | See description below.
+| `setFont` *<sub>Output(</sub>*      | See description below.
 
 ### Mode
 Use this to set certain modes. For all the modes that you want to set, add
